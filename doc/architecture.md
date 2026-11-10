@@ -176,21 +176,31 @@ Notes:
 - The modification sequence is recorded from day one even though
   `CONDSTORE` is later; adding the extension then needs no data change.
 
-DynamoDB mapping (one table, composite key):
+DynamoDB mapping (one table, partition key `pk`, sort key `sk`):
 
-| Partition key | Sort key | Item |
+| `pk` | `sk` | Item |
 |---|---|---|
-| `ACCOUNT#<id>` | `META` | account |
-| `ACCOUNT#<id>` | `CRED#<credential id>` | credential |
-| `ACCOUNT#<id>` | `MBOX#<mailbox id>` | mailbox with counters |
-| `ADDR#<address>` | `META` | address to account |
-| `MBOX#<mailbox id>` | `MSG#<zero-padded UID>` | message record |
-| `BLOB#<blob id>` | `META` | reference count |
-| `INGEST#<event id>` | `META` | ingest de-duplication marker, expires |
+| `ACCOUNT#<account>` | `META` | account, and its counter for `UIDVALIDITY` values |
+| `ACCOUNT#<account>` | `CRED#<credential>` | credential |
+| `ACCOUNT#<account>` | `ADDR#<pattern>` | marks a pattern the account owns, for listing |
+| `ACCOUNT#<account>` | `MBOXNAME#<name>` | reserves a mailbox name, points at the mailbox |
+| `ACCOUNTS` | `<primary address>` | directory of accounts, for listing |
+| `ADDR#<pattern>` | `META` | owner of a pattern |
+| `MBOX#<mailbox>` | `META` | mailbox with its counters |
+| `MBOX#<mailbox>` | `MSG#<UID, ten digits>` | message record |
+| `BLOB#<blob>` | `META` | reference count; a marker once released |
+| `INGEST#<key>` | `META` | ingest de-duplication marker |
 
-UID allocation is a conditional update on the mailbox item inside the same
-transaction that writes the message record. This mapping is private to
-`epistel-aws`.
+`expires_at`, in seconds since the epoch, is the table's time-to-live attribute.
+All reads are strongly consistent.
+
+Uniqueness (one owner per address, one mailbox per name) comes from conditional
+writes inside transactions. An append takes its UID with an atomic counter
+update on the mailbox item and then stores the record; a failure in between
+leaves a UID unused, which IMAP allows. Removing a record and releasing its blob
+are two steps, as are deleting a mailbox and removing its contents; a failure in
+between leaves unreferenced items for the sweep, never a dangling reference.
+This mapping is private to `epistel-aws`.
 
 ## 7. Inbound flow
 
@@ -318,9 +328,10 @@ the remaining keys in the section belong to that implementation.
 
 Subcommands of the `epistel` binary, acting on the metadata store directly:
 
-- `epistel account add | list | suspend | remove`
+- `epistel account add | list | suspend | resume | remove`
 - `epistel password new | list | revoke`
 - `epistel address add | list | remove` (including `*@domain`)
+- `epistel check`
 - `epistel serve`
 
 They need the same configuration file and the same cloud identity as the

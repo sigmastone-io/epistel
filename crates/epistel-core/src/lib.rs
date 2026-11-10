@@ -25,6 +25,7 @@ pub mod memory;
 pub mod metadata;
 pub mod model;
 pub mod outbound;
+pub mod password;
 
 #[cfg(feature = "conformance")]
 pub mod conformance;

@@ -70,7 +70,7 @@ pub trait MetadataStore: Send + Sync + 'static {
     /// see [`directory::resolve_recipient`](crate::directory::resolve_recipient) for that.
     async fn get_address(&self, pattern: &AddressPattern) -> Result<Option<AccountId>>;
 
-    /// The patterns an account owns, in order.
+    /// The patterns an account owns, in no particular order.
     async fn list_addresses(&self, account: AccountId) -> Result<Vec<AddressPattern>>;
 
     /// Takes a pattern away from its owner. `Conflict` for an account's primary address.
@@ -111,10 +111,16 @@ pub trait MetadataStore: Send + Sync + 'static {
 
     /// Adds a message to a mailbox.
     ///
-    /// In one step: the message gets the mailbox's next UID, the mailbox's next UID and highest
-    /// modification sequence move on, the record is stored, and the blob gains one reference.
-    /// Concurrent appends never share a UID, and a UID is never given out twice, not even after
-    /// its message was expunged. `Conflict` when the mailbox has run out of UIDs.
+    /// The message gets a UID larger than any the mailbox gave out before, and a modification
+    /// sequence larger than any before; the mailbox's next UID and highest modification sequence
+    /// move past them. Concurrent appends never share a UID, and a UID is never given out twice,
+    /// not even after its message was expunged. Storing the record and giving the blob one more
+    /// reference happen together or not at all. An append that fails may leave a UID unused.
+    ///
+    /// `Conflict` when the mailbox has run out of UIDs, and when the blob was reported released
+    /// by an earlier [`expunge`](Self::expunge) or [`delete_mailbox`](Self::delete_mailbox): the
+    /// caller was told to delete it, so nothing may point at it again. A backend that cannot
+    /// tell may accept such an append; callers must not rely on either.
     async fn append_message(&self, mailbox: MailboxId, new: NewMessage) -> Result<MessageRecord>;
 
     /// The records whose UID lies in `range`, ascending.

@@ -1,8 +1,9 @@
 # Example configuration for Epistel.
 #
-# Every backend section has a `backend` key that picks the implementation. The only one that
-# exists so far is "memory", which keeps everything in the process and loses it on exit. It is
-# for trying things out; the cloud backends arrive with later milestones (see doc/roadmap.md).
+# Every backend section has a `backend` key that picks the implementation. "memory" keeps
+# everything in the process and loses it on exit; it is for trying things out. The cloud
+# alternatives are shown in comments. Credentials are never written here: they come from the
+# environment, a profile, or the role of the machine.
 
 [server]
 # The name mail clients connect to. The certificate must be issued for it.
@@ -22,9 +23,18 @@ max_message_size = "40MB"
 
 [metadata]
 backend = "memory"
+# backend = "dynamodb"
+# table = "epistel"
+# region = "eu-west-1"                  # optional; taken from the environment when left out
+# endpoint = "http://localhost:8000"    # optional; only for emulators
 
 [blobs]
 backend = "memory"
+# backend = "s3"
+# bucket = "example-epistel-mail"
+# prefix = "blobs/"                     # optional; this is the default
+# region = "eu-west-1"                  # optional
+# endpoint = "http://localhost:9000"    # optional; only for emulators and S3-compatible stores
 
 [inbound]
 backend = "memory"

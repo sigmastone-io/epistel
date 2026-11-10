@@ -13,8 +13,10 @@ repository.workspace = true
 conformance = ["tokio/rt"]
 
 [dependencies]
+argon2.workspace = true
 async-trait.workspace = true
 bytes.workspace = true
+getrandom.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["sync", "time"] }
 uuid.workspace = true

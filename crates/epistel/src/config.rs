@@ -91,6 +91,14 @@ impl Default for Submission {
 pub enum MetadataBackend {
     /// Kept in the process and lost when it ends. For trying things out.
     Memory {},
+    /// One DynamoDB table.
+    Dynamodb {
+        table: String,
+        /// Taken from the environment when left out.
+        region: Option<String>,
+        /// Only for emulators and private endpoints.
+        endpoint: Option<String>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Deserialize)]
@@ -98,6 +106,21 @@ pub enum MetadataBackend {
 pub enum BlobBackend {
     /// Kept in the process and lost when it ends. For trying things out.
     Memory {},
+    /// One prefix of an S3 bucket.
+    S3 {
+        bucket: String,
+        /// Put in front of every object name. Ends with `/` to act as a folder.
+        #[serde(default = "default_blob_prefix")]
+        prefix: String,
+        /// Taken from the environment when left out.
+        region: Option<String>,
+        /// Only for emulators and S3-compatible stores.
+        endpoint: Option<String>,
+    },
+}
+
+fn default_blob_prefix() -> String {
+    "blobs/".to_owned()
 }
 
 #[derive(Debug, PartialEq, Eq, Deserialize)]
@@ -256,6 +279,45 @@ mod tests {
         assert_eq!(config.submission.listen.port(), 465);
         assert_eq!(config.submission.max_message_size, ByteSize(40 << 20));
         assert_eq!(config.metadata, MetadataBackend::Memory {});
+    }
+
+    #[test]
+    fn cloud_backends_take_their_own_keys() {
+        let text = MINIMAL
+            .replace(
+                "[metadata]
+        backend = \"memory\"",
+                "[metadata]
+backend = \"dynamodb\"
+table = \"epistel\"",
+            )
+            .replace(
+                "[blobs]
+        backend = \"memory\"",
+                "[blobs]
+backend = \"s3\"
+bucket = \"example-mail\"
+endpoint = \"http://localhost:9000\"",
+            );
+        let config = Config::parse(&text).unwrap();
+        assert_eq!(
+            config.metadata,
+            MetadataBackend::Dynamodb {
+                table: "epistel".into(),
+                region: None,
+                endpoint: None
+            }
+        );
+        assert_eq!(
+            config.blobs,
+            BlobBackend::S3 {
+                bucket: "example-mail".into(),
+                prefix: "blobs/".into(),
+                region: None,
+                endpoint: Some("http://localhost:9000".into()),
+            }
+        );
+        assert!(error_of(&text.replace("table = \"epistel\"", "")).contains("table"));
     }
 
     #[test]

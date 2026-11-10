@@ -234,6 +234,16 @@ impl SystemFlags {
         Self(0)
     }
 
+    /// The flags as a number, for a backend to store.
+    pub const fn bits(self) -> u8 {
+        self.0
+    }
+
+    /// The flags a backend stored. Bits that mean nothing are dropped.
+    pub const fn from_bits(bits: u8) -> Self {
+        Self(bits & 0b1_1111)
+    }
+
     pub const fn is_empty(self) -> bool {
         self.0 == 0
     }

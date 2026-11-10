@@ -18,7 +18,7 @@ Contents:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files.
 
-Milestones, in order:
+Milestones, in order. 1 and 2 are done.
 
 1. **Foundation.** Workspace, core types, the five traits, in-memory
    implementations, conformance suites, configuration loading, continuous
@@ -34,6 +34,7 @@ Milestones, in order:
 6. **Submission.** Listener, authentication, sender authorization, relay
    through SES.
 7. **Hardening.** Rate limits, connection limits, fuzzing, client matrix,
+   the sweep for unreferenced blobs and items, batched expunge on DynamoDB,
    release artifacts (static binaries for x86-64 and ARM64 Linux, container
    image).
 

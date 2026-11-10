@@ -9,9 +9,9 @@ protocol a mail client can read from. Epistel fills that gap: it keeps the
 mailboxes, serves them over IMAP, and accepts outgoing mail over SMTP
 Submission, handing it to SES for delivery.
 
-Status: early development. The domain types, the backend traits, their in-memory
-implementations and the conformance suites exist; the protocol servers and the
-cloud backends do not yet. See:
+Status: early development. The storage side exists: domain types, backend traits
+with in-memory, DynamoDB and S3 implementations, conformance suites, and the
+administration commands. The protocol servers and mail flow do not yet. See:
 
 - [doc/architecture.md](doc/architecture.md) - the design
 - [doc/roadmap.md](doc/roadmap.md) - what the first release contains, and
@@ -35,6 +35,21 @@ repository.
 cargo test --workspace --all-features
 cargo run -p epistel -- --config epistel.example.toml check
 ```
+
+The DynamoDB and S3 backends are tested against emulators. Their tests run when
+`EPISTEL_TEST_DYNAMODB_ENDPOINT` and `EPISTEL_TEST_S3_ENDPOINT` name one, and
+report themselves skipped otherwise; see `crates/epistel-aws/tests/emulators.rs`.
+
+## Administration
+
+```
+epistel account add ada@example.org --name "Ada"
+epistel password new ada@example.org --label laptop
+epistel address add sales@example.org ada@example.org
+epistel address add '*@example.org' ada@example.org
+```
+
+`epistel help` lists the rest.
 
 ## License
 

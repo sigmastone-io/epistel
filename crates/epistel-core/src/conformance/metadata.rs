@@ -530,19 +530,16 @@ async fn concurrent_appends(store: Arc<dyn MetadataStore>) {
         uids.insert(record.uid.get());
         modseqs.insert(record.modseq);
     }
-    assert_eq!(
-        uids,
-        (1..=WRITERS).collect::<BTreeSet<_>>(),
-        "concurrent appends get distinct, gapless UIDs"
-    );
+    assert_eq!(uids.len(), WRITERS as usize, "concurrent appends get distinct UIDs");
     assert_eq!(
         modseqs.len(),
         WRITERS as usize,
         "concurrent appends get distinct modification sequences"
     );
-    assert_eq!(
-        store.get_mailbox(mailbox.id).await.expect("get").next_uid,
-        uid(WRITERS + 1)
+    let next_uid = store.get_mailbox(mailbox.id).await.expect("get").next_uid;
+    assert!(
+        next_uid.get() > *uids.last().expect("appended"),
+        "the next UID is past every UID given out"
     );
 }
 
