@@ -1,0 +1,27 @@
+[package]
+name = "epistel-core"
+description = "Domain types, backend traits and in-memory backends of the Epistel mail server."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[features]
+# The conformance suites every backend implementation must pass. A backend crate turns this on in
+# its dev-dependencies and calls the suites from its own tests.
+conformance = ["tokio/rt"]
+
+[dependencies]
+async-trait.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["sync", "time"] }
+uuid.workspace = true
+
+[dev-dependencies]
+epistel-core = { path = ".", features = ["conformance"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

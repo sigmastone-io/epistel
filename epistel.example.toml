@@ -1,0 +1,33 @@
+# Example configuration for Epistel.
+#
+# Every backend section has a `backend` key that picks the implementation. The only one that
+# exists so far is "memory", which keeps everything in the process and loses it on exit. It is
+# for trying things out; the cloud backends arrive with later milestones (see doc/roadmap.md).
+
+[server]
+# The name mail clients connect to. The certificate must be issued for it.
+hostname = "mail.example.org"
+
+[tls]
+# PEM files. There is no way to run without TLS.
+certificate = "/etc/epistel/tls/fullchain.pem"
+private_key = "/etc/epistel/tls/key.pem"
+
+[imap]
+listen = "[::]:993"
+
+[submission]
+listen = "[::]:465"
+max_message_size = "40MB"
+
+[metadata]
+backend = "memory"
+
+[blobs]
+backend = "memory"
+
+[inbound]
+backend = "memory"
+
+[outbound]
+backend = "memory"

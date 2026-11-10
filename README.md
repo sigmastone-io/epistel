@@ -9,7 +9,9 @@ protocol a mail client can read from. Epistel fills that gap: it keeps the
 mailboxes, serves them over IMAP, and accepts outgoing mail over SMTP
 Submission, handing it to SES for delivery.
 
-Status: design stage. No code yet. See:
+Status: early development. The domain types, the backend traits, their in-memory
+implementations and the conformance suites exist; the protocol servers and the
+cloud backends do not yet. See:
 
 - [doc/architecture.md](doc/architecture.md) - the design
 - [doc/roadmap.md](doc/roadmap.md) - what the first release contains, and
@@ -26,6 +28,13 @@ repository.
   DKIM signing, and spam and virus scanning stay with the mail service.
 - Stateless process. Messages live in an object store, everything else in a
   metadata store. Both sit behind traits and are chosen by configuration.
+
+## Building
+
+```
+cargo test --workspace --all-features
+cargo run -p epistel -- --config epistel.example.toml check
+```
 
 ## License
 
