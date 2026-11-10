@@ -3,10 +3,14 @@
 mod admin;
 mod backends;
 mod config;
+mod listener;
+mod tls;
 
 use std::io::IsTerminal;
 use std::path::PathBuf;
 use std::process::ExitCode;
+use std::sync::Arc;
+use std::time::Duration;
 
 use clap::{Parser, Subcommand};
 use epistel_core::ingest::Ingest;
@@ -14,6 +18,10 @@ use epistel_core::ingest::Ingest;
 use crate::admin::{AccountCommand, AddressCommand, AdminCommand, AdminError, PasswordCommand};
 use crate::backends::Backends;
 use crate::config::Config;
+use crate::tls::Identity;
+
+/// How long a failed login is held back. Slows guessing down; real limits come with hardening.
+const FAILED_LOGIN_DELAY: Duration = Duration::from_secs(2);
 
 #[derive(Parser)]
 #[command(name = "epistel", version, about)]
@@ -28,9 +36,9 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Runs the server: files incoming mail until told to stop.
+    /// Runs the server: files incoming mail and serves IMAP until told to stop.
     ///
-    /// The IMAP and Submission listeners are not built yet; this runs ingest only.
+    /// IMAP is read-only for now, and the Submission listener is not built yet.
     Serve,
     /// Reads the configuration, reports what it selects, and exits.
     Check,
@@ -85,7 +93,8 @@ async fn stop_requested() {
     interrupt.await;
 }
 
-async fn serve(config: &Config, backends: Backends) {
+/// Runs ingest and the IMAP listener until asked to stop. `Err` when the server cannot start.
+async fn serve(config: &Config, backends: Backends) -> Result<(), String> {
     // Lines for a person at a terminal, JSON for whatever collects the output of a service.
     let logs = tracing_subscriber::fmt().with_writer(std::io::stdout);
     if std::io::stdout().is_terminal() {
@@ -94,16 +103,42 @@ async fn serve(config: &Config, backends: Backends) {
         logs.json().init()
     }
 
+    let identity = Identity::load(&config.tls).map_err(|error| chain(&error))?;
+    tokio::spawn(identity.clone().keep_fresh());
+
+    // One request to stop reaches every part.
+    let (stop, _) = tokio::sync::watch::channel(false);
+    let stopped = |mut stop: tokio::sync::watch::Receiver<bool>| async move {
+        let _ = stop.wait_for(|stopping| *stopping).await;
+    };
+
+    let imap = Arc::new(epistel_imap::Context {
+        metadata: backends.metadata.clone(),
+        blobs: backends.blobs.clone(),
+        failed_login_delay: FAILED_LOGIN_DELAY,
+    });
+    let listener = listener::run("imap", config.imap.listen, identity, stopped(stop.subscribe()), move |stream| {
+        epistel_imap::serve(stream, imap.clone())
+    });
+    let ingest = Ingest::new(backends.metadata, backends.blobs, backends.inbound, backends.changes);
     tracing::info!(
         hostname = %config.server.hostname,
         metadata = ?config.metadata,
         blobs = ?config.blobs,
         inbound = ?config.inbound,
-        "ingest started; the IMAP and Submission listeners are not built yet"
+        "started; the Submission listener is not built yet"
     );
-    let ingest = Ingest::new(backends.metadata, backends.blobs, backends.inbound, backends.changes);
-    ingest.run(stop_requested()).await;
+
+    let ingesting = ingest.run(stopped(stop.subscribe()));
+    let stopping = async {
+        stop_requested().await;
+        tracing::info!("stopping");
+        let _ = stop.send(true);
+    };
+    let (listened, (), ()) = tokio::join!(listener, ingesting, stopping);
+    listened.map_err(|error| format!("cannot listen on {}: {error}", config.imap.listen))?;
     tracing::info!("stopped");
+    Ok(())
 }
 
 /// An error with everything that led to it, on one line.
@@ -136,8 +171,13 @@ async fn main() -> ExitCode {
             return ExitCode::SUCCESS;
         }
         Command::Serve => {
-            serve(&config, backends).await;
-            return ExitCode::SUCCESS;
+            return match serve(&config, backends).await {
+                Ok(()) => ExitCode::SUCCESS,
+                Err(error) => {
+                    eprintln!("epistel: {error}");
+                    ExitCode::from(2)
+                }
+            };
         }
         Command::Account(command) => AdminCommand::Account(command),
         Command::Password(command) => AdminCommand::Password(command),

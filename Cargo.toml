@@ -18,21 +18,34 @@ all = { level = "warn", priority = -1 }
 [workspace.dependencies]
 epistel-core = { path = "crates/epistel-core", version = "0.1.0" }
 epistel-aws = { path = "crates/epistel-aws", version = "0.1.0" }
+epistel-imap = { path = "crates/epistel-imap", version = "0.1.0" }
 
 argon2 = "0.5"
 async-trait = "0.1"
 aws-config = "1"
 aws-sdk-dynamodb = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
+base64 = "0.22"
 aws-sdk-sqs = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
 aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
 bytes = "1"
+chrono = { version = "0.4", default-features = false, features = ["std"] }
 getrandom = "0.3"
+imap-codec = { version = "=2.0.0-alpha.10", features = ["ext_id", "ext_namespace"] }
 clap = { version = "4", features = ["derive", "env"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-pemfile = "2"
 thiserror = "2"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
 tokio = { version = "1", default-features = false }
 toml = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 uuid = { version = "1", features = ["v4"] }
+
+# Dependencies build without debug information in the dev and test profiles. Nobody steps through
+# them, and with the cloud SDKs their debug information was most of a ten gigabyte target directory.
+# The workspace's own crates keep theirs, and a backtrace still names every frame.
+[profile.dev.package."*"]
+debug = false

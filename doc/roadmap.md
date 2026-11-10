@@ -18,7 +18,7 @@ Contents:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files.
 
-Milestones, in order. 1 to 3 are done.
+Milestones, in order. 1 to 4 are done.
 
 1. **Foundation.** Workspace, core types, the five traits, in-memory
    implementations, conformance suites, configuration loading, continuous
@@ -27,14 +27,16 @@ Milestones, in order. 1 to 3 are done.
    Admin commands.
 3. **Ingest.** SES over SQS source, address resolution, filing, exactly-once
    delivery, dead-letter handling, the `serve` command.
-4. **IMAP, read path.** Message parsing with the cached envelope and body
-   structure, TLS listener, authentication, `LIST`, `STATUS`, `SELECT`,
-   `FETCH`, `SEARCH`.
+4. **IMAP, read path.** Message structure and address parsing, TLS
+   listener with certificate reload, login, `LIST`, `STATUS`, `SELECT`,
+   `FETCH`, `SEARCH`. Mailboxes open read-only.
 5. **IMAP, write path.** `STORE`, `APPEND`, `COPY`, `MOVE`, `EXPUNGE`,
    mailbox management, `IDLE` with change notification.
 6. **Submission.** Listener, authentication, sender authorization, relay
    through SES.
-7. **Hardening.** Rate limits, connection limits, fuzzing, client matrix,
+7. **Hardening.** Header block kept on the message record so that listing
+   a mailbox does not read blobs, rate limits, connection limits, fuzzing,
+   client matrix,
    the sweep for unreferenced blobs and items, batched expunge on DynamoDB,
    release artifacts (static binaries for x86-64 and ARM64 Linux, container
    image).

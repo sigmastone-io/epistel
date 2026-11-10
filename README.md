@@ -9,10 +9,10 @@ protocol a mail client can read from. Epistel fills that gap: it keeps the
 mailboxes, serves them over IMAP, and accepts outgoing mail over SMTP
 Submission, handing it to SES for delivery.
 
-Status: early development. Storage and incoming mail work: backend traits with
+Status: early development. Mail comes in and can be read: backend traits with
 in-memory and AWS implementations (DynamoDB, S3, SES over SQS), conformance
-suites, administration commands, and ingest, which files received mail into
-mailboxes. Nothing can read that mail yet: the IMAP and Submission servers are
+suites, administration commands, ingest, and an IMAP server over TLS. IMAP is
+read-only so far; changing mail over IMAP and sending through Submission are
 next. See:
 
 - [doc/architecture.md](doc/architecture.md) - the design
@@ -49,7 +49,9 @@ see `crates/epistel-aws/tests/emulators.rs`.
 epistel serve
 ```
 
-files incoming mail until stopped. It logs lines on a terminal and JSON
+files incoming mail and serves IMAP on port 993 until stopped. It needs a
+certificate and key for the host name (`[tls]` in the configuration) and takes
+over new ones when the files change. It logs lines on a terminal and JSON
 otherwise.
 
 ## Administration

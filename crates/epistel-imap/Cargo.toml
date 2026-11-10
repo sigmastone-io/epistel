@@ -1,0 +1,23 @@
+[package]
+name = "epistel-imap"
+description = "IMAP protocol server of the Epistel mail server."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+epistel-core.workspace = true
+base64.workspace = true
+bytes.workspace = true
+chrono.workspace = true
+imap-codec.workspace = true
+tokio = { workspace = true, features = ["io-util", "rt", "sync", "time"] }
+tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+
+[lints]
+workspace = true

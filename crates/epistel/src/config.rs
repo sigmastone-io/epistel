@@ -45,7 +45,7 @@ pub struct Server {
 }
 
 /// Certificate and key, PEM files. Both listeners are TLS only, so there is no way to leave this out.
-#[derive(Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Tls {
     pub certificate: PathBuf,
