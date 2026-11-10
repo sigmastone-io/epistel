@@ -84,6 +84,20 @@ epistel address add '*@example.org' ada@example.org
 
 `epistel help` lists the rest.
 
+## Bringing in older mail
+
+A domain that received mail through an SES receipt rule with an S3 action
+before Epistel was set up still has those messages in that bucket, for as long
+as the bucket keeps them. `tools/import_from_s3.py` reads them and hands each
+to the server over IMAP, into the mailbox of the address it was sent to, with
+the date it arrived. It needs Python, the AWS CLI and the mailboxes' app
+passwords, changes nothing in the bucket, and can be run again safely. Without
+`--apply` it only reports what it would do.
+
+```
+python tools/import_from_s3.py --bucket my-mail-bucket --prefix inbound/     --host mail.example.org --passwords passwords.txt
+```
+
 ## License
 
 Apache-2.0. See [LICENSE](LICENSE).

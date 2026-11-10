@@ -45,6 +45,7 @@ jobs:
       - run: cargo fmt --all --check
       - run: cargo clippy --workspace --all-targets --all-features --locked -- -D warnings
       - run: cargo test --workspace --all-features --locked
+      - run: python3 -m unittest discover -s tools -p "test_*.py"
 
   # The container image, built from what the checks above passed. It always goes to this
   # repository's own registry. It also goes to an Amazon ECR repository when the repository
