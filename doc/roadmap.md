@@ -18,7 +18,7 @@ Contents:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files.
 
-Milestones, in order. 1 to 4 are done.
+Milestones, in order. 1 to 5 are done.
 
 1. **Foundation.** Workspace, core types, the five traits, in-memory
    implementations, conformance suites, configuration loading, continuous
@@ -31,7 +31,8 @@ Milestones, in order. 1 to 4 are done.
    listener with certificate reload, login, `LIST`, `STATUS`, `SELECT`,
    `FETCH`, `SEARCH`. Mailboxes open read-only.
 5. **IMAP, write path.** `STORE`, `APPEND`, `COPY`, `MOVE`, `EXPUNGE`,
-   mailbox management, `IDLE` with change notification.
+   mailbox management, `IDLE` with change notification, updates between
+   sessions.
 6. **Submission.** Listener, authentication, sender authorization, relay
    through SES.
 7. **Hardening.** Header block kept on the message record so that listing
@@ -67,6 +68,9 @@ the 0.1 design blocks it.
 | Item | Note |
 |---|---|
 | OAUTHBEARER | Useful once clients offer OAuth for arbitrary servers. |
+| IMAP4rev2 | Announcing the newer revision: extended `LIST`, `ESEARCH` results, `STATUS` sizes. Every client in use speaks IMAP4rev1. |
+| Renaming the inbox | IMAP gives it a special meaning: the messages move, the inbox stays. Refused for now. |
+| Decoding mailbox names | Names are stored as sent; decoding modified UTF-7 would let them show properly outside IMAP. |
 | JMAP | Candidate for a second access protocol. |
 | Client autoconfiguration | Thunderbird autoconfig document and DNS service records are static and can be published by the infrastructure; a built-in endpoint is optional. |
 | Built-in ACME | The server obtaining its own certificate, cached in the blob store. |

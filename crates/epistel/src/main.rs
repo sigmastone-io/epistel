@@ -115,7 +115,9 @@ async fn serve(config: &Config, backends: Backends) -> Result<(), String> {
     let imap = Arc::new(epistel_imap::Context {
         metadata: backends.metadata.clone(),
         blobs: backends.blobs.clone(),
+        changes: backends.changes.clone(),
         failed_login_delay: FAILED_LOGIN_DELAY,
+        max_message_size: config.submission.max_message_size.0,
     });
     let listener = listener::run("imap", config.imap.listen, identity, stopped(stop.subscribe()), move |stream| {
         epistel_imap::serve(stream, imap.clone())

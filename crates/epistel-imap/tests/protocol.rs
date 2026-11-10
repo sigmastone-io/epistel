@@ -5,7 +5,7 @@ use std::time::{Duration, UNIX_EPOCH};
 
 use base64::Engine;
 use bytes::Bytes;
-use epistel_core::memory::{MemoryBlobStore, MemoryMetadataStore};
+use epistel_core::memory::{MemoryBlobStore, MemoryChangeBus, MemoryMetadataStore};
 use epistel_core::model::{AccountState, Flags, MailboxRole, NewAccount, NewCredential, NewMessage, SystemFlags};
 use epistel_core::{AccountId, BlobStore, MailboxId, MetadataStore, directory, password};
 use epistel_imap::Context;
@@ -24,6 +24,7 @@ Content-Type: application/pdf; name=\"r.pdf\"\r\nContent-Transfer-Encoding: base
 struct Server {
     metadata: Arc<MemoryMetadataStore>,
     blobs: Arc<MemoryBlobStore>,
+    changes: Arc<MemoryChangeBus>,
     account: AccountId,
     inbox: MailboxId,
     secret: String,
@@ -47,7 +48,7 @@ impl Server {
         let credential = NewCredential { label: "test".into(), secret_hash: password::hash(&secret) };
         metadata.add_credential(account, credential).await.unwrap();
         let inbox = directory::mailbox_with_role(&*metadata, account, MailboxRole::Inbox).await.unwrap().unwrap().id;
-        let server = Self { metadata, blobs, account, inbox, secret };
+        let server = Self { metadata, blobs, changes: Arc::new(MemoryChangeBus::new()), account, inbox, secret };
         server.deliver(PLAIN, SystemFlags::SEEN).await;
         server.deliver(MIXED, SystemFlags::empty()).await;
         server
@@ -71,7 +72,9 @@ impl Server {
         let context = Arc::new(Context {
             metadata: self.metadata.clone(),
             blobs: self.blobs.clone(),
+            changes: self.changes.clone(),
             failed_login_delay: Duration::from_millis(10),
+            max_message_size: 1 << 20,
         });
         tokio::spawn(async move {
             let _ = epistel_imap::serve(far, context).await;
@@ -85,7 +88,7 @@ impl Server {
     async fn open_inbox(&self) -> Client {
         let (mut client, _) = self.connect().await;
         assert!(client.run(&format!("LOGIN {LOGIN} {}", self.secret)).await.contains("a OK"));
-        assert!(client.run("SELECT INBOX").await.contains("a OK [READ-ONLY]"));
+        assert!(client.run("SELECT INBOX").await.contains("a OK [READ-WRITE]"));
         client
     }
 }
@@ -140,7 +143,7 @@ async fn the_greeting_announces_what_is_implemented_and_nothing_works_before_log
     let server = Server::start().await;
     let (mut client, greeting) = server.connect().await;
     assert!(greeting.starts_with("* OK [CAPABILITY IMAP4rev1 AUTH=PLAIN "), "{greeting}");
-    assert!(!greeting.contains("STARTTLS") && !greeting.contains("LOGINDISABLED") && !greeting.contains("IDLE"));
+    assert!(!greeting.contains("STARTTLS") && !greeting.contains("LOGINDISABLED"));
 
     assert!(client.run("SELECT INBOX").await.contains("a BAD Log in first"));
     assert!(client.run("LIST \"\" *").await.contains("a BAD"));
@@ -235,29 +238,36 @@ async fn mailboxes_are_listed_with_their_roles_and_the_quarantine_is_hidden() {
 }
 
 #[tokio::test]
-async fn opening_a_mailbox_describes_it_and_is_read_only() {
+async fn opening_a_mailbox_describes_it() {
     let server = Server::start().await;
     let (mut client, _) = server.connect().await;
     client.run(&format!("LOGIN {LOGIN} {}", server.secret)).await;
 
     assert!(client.run("FETCH 1 FLAGS").await.contains("a BAD No mailbox is selected"));
     let selected = client.run("SELECT inbox").await;
-    for expected in
-        ["* 2 EXISTS", "* 0 RECENT", "* FLAGS (", "[PERMANENTFLAGS ()]", "[UNSEEN 2]", "[UIDVALIDITY ", "[UIDNEXT 3]"]
-    {
+    let expected = [
+        "* 2 EXISTS",
+        "* 0 RECENT",
+        "* FLAGS (",
+        "[PERMANENTFLAGS (\\Answered",
+        "[UNSEEN 2]",
+        "[UIDVALIDITY ",
+        "[UIDNEXT 3]",
+    ];
+    for expected in expected {
         assert!(selected.contains(expected), "missing {expected} in {selected}");
     }
-    assert!(selected.contains("a OK [READ-ONLY]"));
-    assert!(client.run("EXAMINE Sent").await.contains("* 0 EXISTS"));
+    assert!(selected.contains("a OK [READ-WRITE]"));
+
+    let examined = client.run("EXAMINE Sent").await;
+    assert!(examined.contains("* 0 EXISTS") && examined.contains("[PERMANENTFLAGS ()]"));
+    assert!(examined.contains("a OK [READ-ONLY]"));
+    assert!(client.run("STORE 1 +FLAGS (\\Seen)").await.contains("a NO [READ-ONLY]"));
+    assert!(client.run("EXPUNGE").await.contains("a NO [READ-ONLY]"));
+
     assert!(client.run("SELECT Nowhere").await.contains("a NO [NONEXISTENT]"));
     assert!(client.run("FETCH 1 FLAGS").await.contains("a BAD"), "a failed SELECT leaves nothing selected");
     assert!(client.run("SELECT Quarantine").await.contains("a NO"));
-
-    for refused in ["CREATE Work", "DELETE Sent", "STORE 1 +FLAGS (\\Seen)", "EXPUNGE", "COPY 1 Sent", "SUBSCRIBE Sent"]
-    {
-        assert!(client.run(refused).await.contains("a NO [CANNOT]"), "{refused}");
-    }
-    assert!(client.run("IDLE").await.contains("a BAD"));
 }
 
 #[tokio::test]
@@ -306,7 +316,7 @@ async fn fetch_returns_record_data_envelope_and_structure() {
 }
 
 #[tokio::test]
-async fn fetch_returns_sections_as_literals_and_leaves_messages_unread() {
+async fn fetch_returns_sections_as_literals() {
     let server = Server::start().await;
     let mut client = server.open_inbox().await;
 
@@ -326,7 +336,6 @@ async fn fetch_returns_sections_as_literals_and_leaves_messages_unread() {
     assert!(client.run("FETCH 1 RFC822.TEXT").await.contains("RFC822.TEXT {12}\nHello Ada."));
 
     assert!(client.run("FETCH 2 BODY[]").await.contains("a OK"));
-    assert!(client.run("FETCH 2 FLAGS").await.contains("FLAGS ()"), "reading a read-only mailbox marks nothing");
 }
 
 #[tokio::test]
@@ -398,4 +407,220 @@ async fn nonsense_gets_an_answer_and_the_conversation_goes_on() {
     client.run("SELECT INBOX").await;
     assert!(client.run("CLOSE").await.contains("a OK"));
     assert!(client.run("SEARCH ALL").await.contains("a BAD No mailbox is selected"));
+}
+
+#[tokio::test]
+async fn reading_a_message_marks_it_read_unless_the_client_only_peeks() {
+    let server = Server::start().await;
+    let mut client = server.open_inbox().await;
+
+    assert!(client.run("FETCH 2 BODY.PEEK[]").await.contains("a OK"));
+    assert!(client.run("FETCH 2 (BODYSTRUCTURE ENVELOPE RFC822.HEADER)").await.contains("a OK"));
+    assert!(client.run("FETCH 2 FLAGS").await.contains("FLAGS ()"), "peeking and looking at headers is not reading");
+
+    let read = client.run("FETCH 2 BODY[TEXT]").await;
+    assert!(read.contains("FLAGS (\\Seen))"), "the new flag is reported with the text: {read}");
+    assert!(client.run("SEARCH UNSEEN").await.contains("* SEARCH\n"));
+
+    server.deliver(PLAIN, SystemFlags::empty()).await;
+    assert!(client.run("EXAMINE INBOX").await.contains("* 3 EXISTS"));
+    assert!(client.run("FETCH 3 RFC822").await.contains("a OK"));
+    assert!(client.run("FETCH 3 FLAGS").await.contains("FLAGS ()"), "a mailbox open read-only is left as it is");
+}
+
+#[tokio::test]
+async fn flags_are_stored_added_and_removed() {
+    let server = Server::start().await;
+    let mut client = server.open_inbox().await;
+
+    let added = client.run("STORE 2 +FLAGS (\\Flagged $Later)").await;
+    assert!(added.contains("* 2 FETCH (FLAGS (\\Flagged $Later))"), "{added}");
+    let silent = client.run("UID STORE 2 -FLAGS.SILENT (\\Flagged)").await;
+    assert!(!silent.contains("FETCH") && silent.contains("a OK"));
+    assert!(
+        client.run("UID STORE 2 +FLAGS (\\Answered)").await.contains("* 2 FETCH (UID 2 FLAGS (\\Answered $Later))")
+    );
+    assert!(client.run("STORE 1 FLAGS (\\Draft)").await.contains("* 1 FETCH (FLAGS (\\Draft))"), "replaced, not added");
+    assert!(client.run("STORE 1:* -FLAGS ($Nothing)").await.contains("a OK"));
+    assert!(client.run("STORE 9 +FLAGS (\\Seen)").await.contains("a OK"), "a message that is not there is skipped");
+    assert!(client.run("SEARCH KEYWORD $Later").await.contains("* SEARCH 2\n"));
+    assert!(client.run("SEARCH DRAFT").await.contains("* SEARCH 1\n"));
+}
+
+#[tokio::test]
+async fn expunge_removes_what_is_marked_deleted_and_renumbers() {
+    let server = Server::start().await;
+    server.deliver(PLAIN, SystemFlags::empty()).await;
+    let mut client = server.open_inbox().await;
+
+    assert!(!client.run("EXPUNGE").await.contains("* "), "nothing is marked, nothing goes");
+    client.run("STORE 1,3 +FLAGS.SILENT (\\Deleted)").await;
+    let limited = client.run("UID EXPUNGE 3").await;
+    assert!(limited.contains("* 3 EXPUNGE") && !limited.contains("* 1 EXPUNGE"), "{limited}");
+    let rest = client.run("EXPUNGE").await;
+    assert!(rest.contains("* 1 EXPUNGE"), "{rest}");
+    assert!(client.run("FETCH 1 UID").await.contains("* 1 FETCH (UID 2)"), "the survivor moved up");
+    assert_eq!(server.blobs.len(), 1, "expunged messages are removed from storage");
+
+    client.run("STORE 1 +FLAGS.SILENT (\\Deleted)").await;
+    let closed = client.run("CLOSE").await;
+    assert!(!closed.contains("EXPUNGE") && closed.contains("a OK"), "closing expunges without saying which");
+    assert!(client.run("SELECT INBOX").await.contains("* 0 EXISTS"));
+    assert!(server.blobs.is_empty());
+}
+
+#[tokio::test]
+async fn messages_are_appended_with_flags_and_a_date() {
+    let server = Server::start().await;
+    let mut client = server.open_inbox().await;
+    let draft = "From: ada@example.org\r\nSubject: Draft\r\n\r\nNot sent yet.\r\n";
+
+    client
+        .send(&format!("a APPEND INBOX (\\Seen \\Draft) \" 7-Feb-2026 21:52:25 +0100\" {{{}}}\r\n", draft.len()))
+        .await;
+    assert_eq!(client.line().await, "+ OK");
+    client.send(&format!("{draft}\r\n")).await;
+    let appended = client.until_tagged().await;
+    assert!(appended.contains("* 3 EXISTS"), "the open mailbox hears of its own append: {appended}");
+    assert!(appended.contains("a OK [APPENDUID ") && appended.contains(" 3] Append completed"));
+    let fetched = client.run("FETCH 3 (FLAGS INTERNALDATE BODY.PEEK[TEXT])").await;
+    assert!(
+        fetched.contains("FLAGS (\\Seen \\Draft)") && fetched.contains("\"07-Feb-2026 20:52:25 +0000\""),
+        "{fetched}"
+    );
+    assert!(fetched.contains("Not sent yet."));
+
+    client.send(&format!("a APPEND Sent {{{}+}}\r\n{draft}\r\n", draft.len())).await;
+    assert!(client.until_tagged().await.contains("a OK [APPENDUID "));
+    assert!(client.run("STATUS Sent (MESSAGES UNSEEN)").await.contains("(MESSAGES 1 UNSEEN 1)"));
+
+    client.send(&format!("a APPEND Nowhere {{{}+}}\r\n{draft}\r\n", draft.len())).await;
+    assert!(client.until_tagged().await.contains("a NO [TRYCREATE]"));
+
+    client.send("a APPEND INBOX {5000000}\r\n").await;
+    assert!(client.until_tagged().await.contains("a BAD"), "larger than the server takes");
+    assert!(client.line().await.starts_with("* BYE"));
+}
+
+#[tokio::test]
+async fn messages_are_copied_and_moved_without_duplicating_storage() {
+    let server = Server::start().await;
+    let mut client = server.open_inbox().await;
+
+    let copied = client.run("COPY 1:2 Archive").await;
+    assert!(copied.contains("a OK [COPYUID ") && copied.contains(" 1:2 1:2] Copy completed"), "{copied}");
+    assert!(
+        client.run("STATUS Archive (MESSAGES UNSEEN)").await.contains("(MESSAGES 2 UNSEEN 1)"),
+        "flags travel along"
+    );
+    assert_eq!(server.blobs.len(), 2, "a copy points at the same stored message");
+    assert!(client.run("COPY 1 Nowhere").await.contains("a NO [TRYCREATE]"));
+    assert!(client.run("COPY 7 Archive").await.contains("a OK"));
+
+    let moved = client.run("UID MOVE 1 Trash").await;
+    assert!(moved.contains("* OK [COPYUID ") && moved.contains(" 1 1] Moved"), "{moved}");
+    assert!(moved.contains("* 1 EXPUNGE") && moved.contains("a OK Move completed"));
+    assert!(client.run("FETCH 1 UID").await.contains("UID 2"));
+    assert!(client.run("STATUS Trash (MESSAGES)").await.contains("(MESSAGES 1)"));
+
+    // The original is gone from the inbox, the copies keep the message alive.
+    client.run("STORE 1 +FLAGS.SILENT (\\Deleted)").await;
+    client.run("EXPUNGE").await;
+    assert_eq!(server.blobs.len(), 2);
+    client.run("SELECT Archive").await;
+    assert!(client.run("FETCH 1 BODY.PEEK[TEXT]").await.contains("Hello Ada."));
+}
+
+#[tokio::test]
+async fn mailboxes_are_created_renamed_subscribed_and_deleted() {
+    let server = Server::start().await;
+    let (mut client, _) = server.connect().await;
+    client.run(&format!("LOGIN {LOGIN} {}", server.secret)).await;
+
+    assert!(client.run("CREATE Work/Projects/2026").await.contains("a OK"));
+    let listed = client.run("LIST \"\" Work*").await;
+    assert!(listed.contains("(\\HasChildren) \"/\" \"Work\"") && listed.contains("\"Work/Projects/2026\""), "{listed}");
+    assert!(client.run("CREATE Work/Projects").await.contains("a NO [ALREADYEXISTS]"));
+    assert!(client.run("CREATE inbox").await.contains("a NO [ALREADYEXISTS]"));
+    assert!(client.run("CREATE Lists/").await.contains("a OK"), "a trailing separator is allowed");
+    assert!(client.run("CREATE \"a//b\"").await.contains("a NO [CANNOT]"));
+
+    assert!(client.run("RENAME Work Jobs").await.contains("a OK"));
+    let listed = client.run("LIST \"\" *").await;
+    assert!(
+        listed.contains("\"Jobs/Projects/2026\"") && !listed.contains("\"Work"),
+        "what is inside moves along: {listed}"
+    );
+    assert!(client.run("RENAME Jobs Sent").await.contains("a NO [ALREADYEXISTS]"));
+    assert!(client.run("RENAME INBOX Old").await.contains("a NO [CANNOT]"));
+    assert!(client.run("RENAME Nowhere Somewhere").await.contains("a NO [NONEXISTENT]"));
+
+    assert!(client.run("UNSUBSCRIBE Lists").await.contains("a OK"));
+    assert!(!client.run("LSUB \"\" *").await.contains("\"Lists\""));
+    assert!(client.run("SUBSCRIBE Lists").await.contains("a OK"));
+    assert!(client.run("LSUB \"\" *").await.contains("\"Lists\""));
+
+    assert!(client.run("DELETE Jobs").await.contains("a NO [HASCHILDREN]"));
+    assert!(client.run("DELETE Jobs/Projects/2026").await.contains("a OK"));
+    assert!(client.run("DELETE INBOX").await.contains("a NO [CANNOT]"));
+    assert!(client.run("DELETE Nowhere").await.contains("a NO [NONEXISTENT]"));
+    client.run("SELECT Lists").await;
+    assert!(client.run("DELETE Lists").await.contains("a OK"));
+    assert!(
+        client.run("FETCH 1 FLAGS").await.contains("a BAD No mailbox is selected"),
+        "deleting the open mailbox closes it"
+    );
+}
+
+#[tokio::test]
+async fn a_second_session_sees_what_the_first_one_did() {
+    let server = Server::start().await;
+    let mut first = server.open_inbox().await;
+    let mut second = server.open_inbox().await;
+
+    first.run("STORE 2 +FLAGS.SILENT (\\Flagged)").await;
+    first.run("STORE 1 +FLAGS.SILENT (\\Deleted)").await;
+    first.run("EXPUNGE").await;
+    server.deliver(PLAIN, SystemFlags::empty()).await;
+
+    assert!(!second.run("FETCH 1:2 UID").await.contains("EXPUNGE"), "numbers do not shift inside a fetch");
+    let news = second.run("NOOP").await;
+    assert!(news.contains("* 1 EXPUNGE"), "{news}");
+    assert!(news.contains("* 2 EXISTS"));
+    assert!(news.contains("* 1 FETCH (UID 2 FLAGS (\\Flagged))"));
+    assert!(!second.run("NOOP").await.contains("* "), "told once");
+    assert!(!first.run("NOOP").await.contains("FETCH"), "a session is not told about its own changes again");
+}
+
+#[tokio::test]
+async fn an_idling_client_is_told_at_once() {
+    let server = Server::start().await;
+    let mut idler = server.open_inbox().await;
+    let mut other = server.open_inbox().await;
+
+    idler.send("a IDLE\r\n").await;
+    assert_eq!(idler.line().await, "+ idling");
+
+    other.run("STORE 1 +FLAGS.SILENT (\\Flagged)").await;
+    assert_eq!(idler.line().await, "* 1 FETCH (UID 1 FLAGS (\\Seen \\Flagged))");
+
+    let draft = "Subject: New\r\n\r\nFresh.\r\n";
+    other.send(&format!("a APPEND INBOX {{{}+}}\r\n{draft}\r\n", draft.len())).await;
+    other.until_tagged().await;
+    assert_eq!(idler.line().await, "* 3 EXISTS");
+
+    other.run("STORE 2 +FLAGS.SILENT (\\Deleted)").await;
+    assert!(idler.line().await.starts_with("* 2 FETCH (UID 2 FLAGS (\\Deleted"));
+    other.run("EXPUNGE").await;
+    assert_eq!(idler.line().await, "* 2 EXPUNGE");
+
+    idler.send("DONE\r\n").await;
+    assert_eq!(idler.line().await, "a OK Idle completed");
+    assert!(idler.run("FETCH 2 UID").await.contains("UID 3"), "the picture is current after idling");
+
+    idler.send("a IDLE\r\n").await;
+    idler.line().await;
+    idler.send("NOOP\r\n").await;
+    assert_eq!(idler.line().await, "a BAD Expected DONE");
+    assert!(idler.run("NOOP").await.contains("a OK"));
 }

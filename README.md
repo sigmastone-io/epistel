@@ -9,10 +9,10 @@ protocol a mail client can read from. Epistel fills that gap: it keeps the
 mailboxes, serves them over IMAP, and accepts outgoing mail over SMTP
 Submission, handing it to SES for delivery.
 
-Status: early development. Mail comes in and can be read: backend traits with
-in-memory and AWS implementations (DynamoDB, S3, SES over SQS), conformance
-suites, administration commands, ingest, and an IMAP server over TLS. IMAP is
-read-only so far; changing mail over IMAP and sending through Submission are
+Status: early development. Mail comes in and can be read and managed: backend
+traits with in-memory and AWS implementations (DynamoDB, S3, SES over SQS),
+conformance suites, administration commands, ingest, and an IMAP4rev1 server
+over TLS with `IDLE`, `MOVE` and `UIDPLUS`. Sending through Submission is
 next. See:
 
 - [doc/architecture.md](doc/architecture.md) - the design

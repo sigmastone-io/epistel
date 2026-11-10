@@ -45,7 +45,7 @@ One profile, not a matrix of options.
 
 | Purpose | Protocol | Port | Transport |
 |---|---|---|---|
-| Read mail | IMAP4rev2, with IMAP4rev1 for clients that have not caught up | 993 | implicit TLS |
+| Read mail | IMAP4rev1 with the extensions below | 993 | implicit TLS |
 | Send mail | SMTP Submission (RFC 6409) | 465 | implicit TLS (RFC 8314) |
 
 TLS:
@@ -71,9 +71,11 @@ Authentication:
 - OAuth (OAUTHBEARER) is later. Mainstream clients only offer OAuth for a
   fixed list of large providers, so it would add little today.
 
-IMAP capabilities in 0.1: `IMAP4rev2`, `IMAP4rev1`, `AUTH=PLAIN`, `SASL-IR`,
-`IDLE`, `UIDPLUS`, `MOVE`, `SPECIAL-USE`, `NAMESPACE`, `ENABLE`, `UNSELECT`,
-`LITERAL+`, `ID`, `ESEARCH`.
+IMAP capabilities in 0.1: `IMAP4rev1`, `AUTH=PLAIN`, `SASL-IR`, `LITERAL+`,
+`ID`, `ENABLE`, `NAMESPACE`, `UNSELECT`, `SPECIAL-USE`, `IDLE`, `UIDPLUS`,
+`MOVE`. IMAP4rev2 is on the roadmap: every client in use speaks IMAP4rev1,
+and announcing the newer revision obliges the server to more than its
+extensions already give.
 
 SMTP extensions in 0.1: `AUTH PLAIN`, `SIZE`, `8BITMIME`, `PIPELINING`,
 `ENHANCEDSTATUSCODES`, `SMTPUTF8`.
@@ -282,32 +284,43 @@ flow.
 ## 9. IMAP server
 
 - One task per connection. Session state is the authenticated account, the
-  selected mailbox and a snapshot of its UID to sequence-number mapping.
+  selected mailbox, and for each of its messages the UID and the modification
+  sequence the client was last told the flags of.
 - Commands are parsed with `imap-codec`, including synchronizing and
   non-synchronizing literals. Responses are written by the server's own
   writer. MIME structure and address lists are parsed by the server's own
   code, because IMAP reports byte ranges and header text exactly as received.
-- Built so far, the read path: `CAPABILITY`, `NOOP`, `LOGOUT`, `ID`, `LOGIN`,
+- Commands: `CAPABILITY`, `NOOP`, `CHECK`, `LOGOUT`, `ID`, `LOGIN`,
   `AUTHENTICATE PLAIN`, `ENABLE`, `NAMESPACE`, `LIST`, `LSUB`, `STATUS`,
-  `SELECT`, `EXAMINE`, `UNSELECT`, `CLOSE`, `CHECK`, `FETCH`, `SEARCH` and
-  their `UID` forms. Every mailbox opens read-only, so a fetch marks nothing
-  as read, and the commands that change mail are refused.
-- Announced capabilities are exactly what is implemented. `IMAP4rev2` and
-  `IDLE` are announced when the write path completes them.
-- To come with the write path: `CREATE`, `DELETE`, `RENAME`, `SUBSCRIBE`,
-  `UNSUBSCRIBE`, `APPEND`, `STORE`, `COPY`, `MOVE`, `EXPUNGE`, `IDLE`.
+  `SELECT`, `EXAMINE`, `UNSELECT`, `CLOSE`, `CREATE`, `DELETE`, `RENAME`,
+  `SUBSCRIBE`, `UNSUBSCRIBE`, `APPEND`, `FETCH`, `STORE`, `COPY`, `MOVE`,
+  `SEARCH`, `EXPUNGE`, `IDLE`, and the `UID` forms.
+- Announced capabilities are exactly what is implemented.
+- `SELECT` opens for reading and writing, `EXAMINE` for reading only. Reading
+  a message body in a mailbox open for writing marks it as read; `BODY.PEEK`
+  does not.
+- A copy points at the same stored message as its original; nothing is
+  duplicated. `MOVE` is a copy followed by the removal of the original.
+- Keeping the client current: on `NOOP`, `CHECK`, `EXPUNGE`, `MOVE`, an
+  `APPEND` to the open mailbox, and while idling, the server compares the
+  mailbox with what the client was told and reports removals, arrivals and
+  changed flags. Sequence numbers never shift inside `FETCH`, `STORE` or
+  `SEARCH`.
+- `IDLE`: every change to a mailbox is published on `ChangeBus`; an idling
+  session hears of it at once and looks. A keepalive line goes out every two
+  minutes so that nothing between client and server drops a quiet connection.
 - `SEARCH` on flags, dates and size is answered from message records. Header
   and text searches read blobs and compare the text as stored, without
   decoding; clients keep their own index.
-- `IDLE` will send a keepalive at a configurable interval (default 2 minutes)
-  so that stateful firewalls and load balancers do not drop the connection.
-- New mail is announced on `NOOP`. Untagged updates from other sessions
-  arrive through `ChangeBus` with the write path.
-- The quarantine mailbox is never listed and cannot be opened.
-- Mailbox names are passed as UTF-8. Modified UTF-7 for IMAP4rev1 clients
-  comes with `CREATE`.
+- Mailbox management: creating a mailbox creates the levels above it;
+  renaming moves what is inside along; a mailbox with mailboxes inside is not
+  deleted. The inbox cannot be deleted or renamed. The quarantine mailbox is
+  never listed and cannot be opened.
+- Mailbox names are stored as the client sends them. A client that encodes
+  non-ASCII names in modified UTF-7 gets them back the same way.
 - A connection that stays silent is closed: after one minute before login,
-  after 31 minutes after it. A command longer than 64 KiB ends the connection.
+  after 31 minutes after it. A command longer than 64 KiB ends the connection;
+  an appended message may be as large as the configured message size.
 
 ## 10. Security
 
