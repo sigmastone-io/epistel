@@ -8,6 +8,8 @@ use std::fmt;
 use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
+use epistel_core::directory::Declared;
+use epistel_core::{AddressPattern, EmailAddress};
 use serde::Deserialize;
 use serde::de::{self, Deserializer, Visitor};
 
@@ -35,6 +37,23 @@ pub struct Config {
     pub blobs: BlobBackend,
     pub inbound: InboundBackend,
     pub outbound: OutboundBackend,
+    /// The mailboxes that have to exist. The server makes the missing ones when it starts.
+    #[serde(default, rename = "mailbox")]
+    pub mailboxes: Vec<Mailbox>,
+}
+
+/// One declared mailbox: an address mail is received for.
+#[derive(Debug, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Mailbox {
+    /// The address, which is also the login name.
+    pub address: String,
+    /// The person's or function's name.
+    #[serde(default)]
+    pub name: String,
+    /// Further addresses that deliver into this mailbox, `*@domain` for a whole domain.
+    #[serde(default)]
+    pub aliases: Vec<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -169,7 +188,29 @@ impl Config {
         Ok(config)
     }
 
+    /// The declared mailboxes, with their addresses checked.
+    pub fn declared(&self) -> Result<Vec<Declared>, ConfigError> {
+        let mut declared = Vec::new();
+        for mailbox in &self.mailboxes {
+            let address = EmailAddress::parse(&mailbox.address)
+                .map_err(|_| ConfigError::Invalid(format!("mailbox: {:?} is not an address", mailbox.address)))?;
+            let mut aliases = Vec::new();
+            for alias in &mailbox.aliases {
+                let pattern = AddressPattern::parse(alias).map_err(|_| {
+                    ConfigError::Invalid(format!("mailbox {address}: the alias {alias:?} is not an address"))
+                })?;
+                aliases.push(pattern);
+            }
+            if declared.iter().any(|other: &Declared| other.address == address) {
+                return Err(ConfigError::Invalid(format!("mailbox {address} is declared twice")));
+            }
+            declared.push(Declared { address, name: mailbox.name.clone(), aliases });
+        }
+        Ok(declared)
+    }
+
     fn validate(&self) -> Result<(), ConfigError> {
+        self.declared()?;
         let hostname = &self.server.hostname;
         let label_ok = |label: &str| {
             !label.is_empty()
@@ -339,6 +380,28 @@ queue_url = \"https://sqs.eu-west-1.amazonaws.com/123456789012/epistel\"";
         assert_eq!(config.outbound, OutboundBackend::Ses { region: None, endpoint: None, configuration_set: None });
         assert!(
             error_of(&text.replace("backend = \"ses\"", "backend = \"ses\"\npassword = \"x\"")).contains("password")
+        );
+    }
+
+    #[test]
+    fn mailboxes_are_declared_with_optional_names_and_aliases() {
+        let text = format!(
+            "{MINIMAL}\n[[mailbox]]\naddress = \"Legal@Example.org\"\nname = \"Legal\"\naliases = [\"legal@example.net\", \"*@example.com\"]\n\n[[mailbox]]\naddress = \"support@example.org\"\n"
+        );
+        let declared = Config::parse(&text).unwrap().declared().unwrap();
+        assert_eq!(declared.len(), 2);
+        assert_eq!(declared[0].address.as_str(), "legal@example.org");
+        assert_eq!(declared[0].aliases.len(), 2);
+        assert!(declared[1].name.is_empty() && declared[1].aliases.is_empty());
+        assert!(Config::parse(MINIMAL).unwrap().declared().unwrap().is_empty());
+
+        assert!(error_of(&format!("{MINIMAL}\n[[mailbox]]\naddress = \"nobody\"\n")).contains("not an address"));
+        assert!(
+            error_of(&format!("{text}\n[[mailbox]]\naddress = \"legal@example.org\"\n")).contains("declared twice")
+        );
+        assert!(
+            error_of(&format!("{MINIMAL}\n[[mailbox]]\naddress = \"a@example.org\"\npassword = \"x\"\n"))
+                .contains("password")
         );
     }
 

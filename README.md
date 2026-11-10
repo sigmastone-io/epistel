@@ -57,7 +57,23 @@ certificate and key for the host name (`[tls]` in the configuration) and takes
 over new ones when the files change. It logs lines on a terminal and JSON
 otherwise.
 
+## Container image
+
+```
+docker build -t epistel .
+docker run -p 993:993 -p 465:465 -v /etc/epistel:/etc/epistel:ro epistel
+```
+
+The image holds the one binary and runs it as an unprivileged user. The
+configuration is expected at `/etc/epistel/epistel.toml`. Every push to `dev`
+builds the image and publishes it to this repository's registry; it also goes
+to an Amazon ECR repository when the repository variables `AWS_ROLE_ARN`,
+`AWS_REGION` and `ECR_REPOSITORY` name one.
+
 ## Administration
+
+Mailboxes can be declared in the configuration (`[[mailbox]]`); the server
+makes the missing ones when it starts. Or by hand:
 
 ```
 epistel account add ada@example.org --name "Ada"

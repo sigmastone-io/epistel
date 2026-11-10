@@ -18,7 +18,7 @@ Contents:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files.
 
-Milestones, in order. 1 to 6 are done.
+Milestones, in order. 1 to 6 are done, and of 7 the container image and the declared mailboxes.
 
 1. **Foundation.** Workspace, core types, the five traits, in-memory
    implementations, conformance suites, configuration loading, continuous
@@ -40,8 +40,8 @@ Milestones, in order. 1 to 6 are done.
    a mailbox does not read blobs, rate limits, connection limits, fuzzing,
    client matrix,
    the sweep for unreferenced blobs and items, batched expunge on DynamoDB,
-   release artifacts (static binaries for x86-64 and ARM64 Linux, container
-   image).
+   release artifacts (static binaries for x86-64 and ARM64 Linux; the
+   container image for x86-64 exists, one for ARM64 does not).
 
 The infrastructure module is developed alongside, from milestone 2 on, in
 the `terraform-aws-epistel` repository.

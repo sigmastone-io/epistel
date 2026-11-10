@@ -396,7 +396,25 @@ the remaining keys in the section belong to that implementation.
 
 ## 12. Administration
 
-Subcommands of the `epistel` binary, acting on the metadata store directly:
+Two ways to say which mailboxes exist.
+
+**Declared in the configuration.** A deployment lists its addresses:
+
+```toml
+[[mailbox]]
+address = "legal@example.org"
+name = "Legal"
+aliases = ["legal@example.net"]
+```
+
+When the server starts it makes a mailbox, with the default folders, for
+every declared address that has none, and gives it its aliases. What exists
+is left alone, and nothing is ever removed: a mailbox dropped from the list
+stays, with its mail, until someone removes it by hand. This is how the
+infrastructure module hands over the addresses it was told about.
+
+**By command.** Subcommands of the `epistel` binary, acting on the metadata
+store directly:
 
 - `epistel account add | list | suspend | resume | remove`
 - `epistel password new | list | revoke`
@@ -404,9 +422,12 @@ Subcommands of the `epistel` binary, acting on the metadata store directly:
 - `epistel check`
 - `epistel serve`
 
-They need the same configuration file and the same cloud identity as the
-server, so they are run on the server host or from an operator machine with
-equivalent access.
+Passwords come only from `epistel password new`, which prints one once. They
+are never part of the configuration.
+
+The commands need the same configuration file and the same cloud identity as
+the server, so they are run on the server host, inside the server's container
+when it runs in one, or from an operator machine with equivalent access.
 
 ## 13. Operations
 

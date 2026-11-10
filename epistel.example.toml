@@ -21,6 +21,16 @@ listen = "[::]:993"
 listen = "[::]:465"
 max_message_size = "40MB"
 
+# Mailboxes that have to exist. The server makes the missing ones when it starts, with their
+# folders; it never removes one. A password for a mailbox comes from `epistel password new`.
+[[mailbox]]
+address = "ada@example.org"
+name = "Ada"
+aliases = ["sales@example.org"]         # optional; "*@example.org" takes a whole domain
+
+[[mailbox]]
+address = "support@example.org"
+
 [metadata]
 backend = "memory"
 # backend = "dynamodb"

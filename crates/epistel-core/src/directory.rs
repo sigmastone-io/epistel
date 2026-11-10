@@ -61,3 +61,59 @@ pub async fn mailbox_with_role(
 pub async fn owns(store: &dyn MetadataStore, account: AccountId, address: &EmailAddress) -> Result<bool> {
     Ok(resolve_recipient(store, address).await? == Some(account))
 }
+
+/// A mailbox the deployment says has to exist: an address that mail is received for, and
+/// further addresses that deliver into the same mailbox.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Declared {
+    /// The address. It is also the login name.
+    pub address: EmailAddress,
+    pub name: String,
+    pub aliases: Vec<AddressPattern>,
+}
+
+/// What [`declare`] found and did.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DeclareOutcome {
+    /// The mailbox did not exist and was made.
+    pub created: bool,
+    /// Aliases that belong to another account and were left there.
+    pub taken: Vec<AddressPattern>,
+}
+
+/// Makes sure a declared mailbox exists, with its default folders and its aliases.
+///
+/// Safe to run on every start: what exists is left alone, and nothing is ever removed. A
+/// mailbox that is dropped from the declaration stays, with its mail, until someone removes it
+/// by hand. `Conflict` when the address already delivers into another account's mailbox.
+pub async fn declare(store: &dyn MetadataStore, declared: &Declared) -> Result<DeclareOutcome> {
+    let mut outcome = DeclareOutcome::default();
+    let account = match store.find_account_by_login(&declared.address).await? {
+        Some(account) => account,
+        None => {
+            let new = NewAccount { primary_address: declared.address.clone(), display_name: declared.name.clone() };
+            match store.create_account(new).await {
+                Ok(account) => {
+                    outcome.created = true;
+                    account
+                }
+                // Made by another instance starting at the same moment, or the address is an
+                // alias of someone else's mailbox.
+                Err(Error::AlreadyExists) => match store.find_account_by_login(&declared.address).await? {
+                    Some(account) => account,
+                    None => return Err(Error::Conflict("the address belongs to another mailbox")),
+                },
+                Err(error) => return Err(error),
+            }
+        }
+    };
+    ensure_default_mailboxes(store, account.id).await?;
+    for alias in &declared.aliases {
+        match store.put_address(alias.clone(), account.id).await {
+            Ok(()) => {}
+            Err(Error::AlreadyExists) => outcome.taken.push(alias.clone()),
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(outcome)
+}

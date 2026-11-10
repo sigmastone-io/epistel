@@ -140,3 +140,44 @@ async fn recipients_resolve_to_the_exact_owner_before_the_catch_all() {
     assert_eq!(resolve("anything@example.org").await, Some(postmaster.id));
     assert_eq!(resolve("ada@elsewhere.example").await, None);
 }
+
+#[tokio::test]
+async fn declared_mailboxes_come_into_being_once_and_are_never_taken_away() {
+    let store = MemoryMetadataStore::new();
+    let pattern = |text: &str| AddressPattern::parse(text).unwrap();
+    let legal = directory::Declared {
+        address: address("legal@example.org"),
+        name: "Legal".to_owned(),
+        aliases: vec![pattern("legal@example.net")],
+    };
+
+    let first = directory::declare(&store, &legal).await.unwrap();
+    assert!(first.created && first.taken.is_empty());
+    let account = store.find_account_by_login(&legal.address).await.unwrap().unwrap();
+    assert_eq!(account.display_name, "Legal");
+    assert_eq!(store.list_mailboxes(account.id).await.unwrap().len(), DEFAULT_MAILBOXES.len());
+    assert_eq!(directory::resolve_recipient(&store, &address("legal@example.net")).await.unwrap(), Some(account.id));
+
+    // Every start declares again. Nothing changes, and what the user did meanwhile stays.
+    let junk = directory::mailbox_with_role(&store, account.id, MailboxRole::Junk).await.unwrap().unwrap();
+    store.rename_mailbox(junk.id, epistel_core::model::MailboxName::parse("Spam").unwrap()).await.unwrap();
+    let again = directory::declare(&store, &legal).await.unwrap();
+    assert_eq!(again, directory::DeclareOutcome::default());
+    assert_eq!(store.list_accounts().await.unwrap().len(), 1);
+    assert!(directory::mailbox_with_role(&store, account.id, MailboxRole::Junk).await.unwrap().is_some());
+
+    // An alias someone else holds is reported and left where it is.
+    let support = directory::Declared {
+        address: address("support@example.org"),
+        name: String::new(),
+        aliases: vec![pattern("legal@example.net"), pattern("help@example.org")],
+    };
+    let outcome = directory::declare(&store, &support).await.unwrap();
+    assert!(outcome.created);
+    assert_eq!(outcome.taken, [pattern("legal@example.net")]);
+    assert_eq!(directory::resolve_recipient(&store, &address("legal@example.net")).await.unwrap(), Some(account.id));
+
+    // An address that is another mailbox's alias cannot become a mailbox of its own.
+    let clash = directory::Declared { address: address("help@example.org"), name: String::new(), aliases: Vec::new() };
+    assert!(matches!(directory::declare(&store, &clash).await, Err(epistel_core::Error::Conflict(_))));
+}

@@ -61,6 +61,7 @@ fn check(cli: &Cli, config: &Config, backends: &Backends) {
         let state = if path.is_file() { "found" } else { "MISSING" };
         println!("  {what:<11} {} ({state})", path.display());
     }
+    println!("  mailboxes   {} declared", config.mailboxes.len());
     println!("  metadata    {:?}", config.metadata);
     println!("  blobs       {:?}", config.blobs);
     println!("  inbound     {:?}", config.inbound);
@@ -102,6 +103,19 @@ async fn serve(config: &Config, backends: Backends) -> Result<(), String> {
     }
 
     let identity = Identity::load(&config.tls).map_err(|error| chain(&error))?;
+
+    // The mailboxes the deployment declares exist before the first message can arrive for them.
+    for declared in config.declared().map_err(|error| chain(&error))? {
+        let outcome = epistel_core::directory::declare(&*backends.metadata, &declared)
+            .await
+            .map_err(|error| format!("cannot set up the mailbox {}: {}", declared.address, chain(&error)))?;
+        if outcome.created {
+            tracing::info!(mailbox = %declared.address, "created a declared mailbox");
+        }
+        for alias in outcome.taken {
+            tracing::warn!(mailbox = %declared.address, %alias, "a declared alias belongs to another mailbox and stays there");
+        }
+    }
     tokio::spawn(identity.clone().keep_fresh());
 
     // One request to stop reaches every part.
