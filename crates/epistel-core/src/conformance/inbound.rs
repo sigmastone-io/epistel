@@ -23,12 +23,7 @@ pub async fn inbound_source(source: &dyn InboundSource, fixture: &dyn InboundFix
     assert!(nothing.is_empty(), "nothing was delivered, nothing is received");
 
     let recipients = vec![fresh_address(), fresh_address()];
-    let verdicts = Verdicts {
-        spam: Verdict::Fail,
-        virus: Verdict::Pass,
-        spf: Verdict::Pass,
-        ..Verdicts::default()
-    };
+    let verdicts = Verdicts { spam: Verdict::Fail, virus: Verdict::Pass, spf: Verdict::Pass, ..Verdicts::default() };
     let raw = Bytes::from_static(b"Subject: one\r\n\r\nfirst\r\n");
     fixture.deliver(recipients.clone(), verdicts, raw.clone()).await;
 
@@ -39,17 +34,10 @@ pub async fn inbound_source(source: &dyn InboundSource, fixture: &dyn InboundFix
     assert_eq!(message.recipients, recipients, "envelope recipients arrive in order");
     assert_eq!(message.verdicts, verdicts);
     assert_eq!(source.fetch(message).await.expect("fetch"), raw);
-    assert_eq!(
-        source.fetch(message).await.expect("fetch again"),
-        raw,
-        "fetching does not consume"
-    );
+    assert_eq!(source.fetch(message).await.expect("fetch again"), raw, "fetching does not consume");
 
     source.acknowledge(message).await.expect("acknowledge");
-    source
-        .acknowledge(message)
-        .await
-        .expect("acknowledging twice is not an error");
+    source.acknowledge(message).await.expect("acknowledging twice is not an error");
     let nothing = source.receive(10, Duration::from_millis(50)).await.expect("receive");
     assert!(nothing.is_empty(), "an acknowledged message does not come back");
 

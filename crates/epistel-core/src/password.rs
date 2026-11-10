@@ -37,9 +37,7 @@ pub fn generate() -> String {
 /// Takes tens of milliseconds by design. Call it off the async threads.
 pub fn hash(secret: &str) -> String {
     let salt = SaltString::encode_b64(&random::<16>()).expect("sixteen bytes are a valid salt");
-    let hash = Argon2::default()
-        .hash_password(secret.as_bytes(), &salt)
-        .expect("default parameters are valid");
+    let hash = Argon2::default().hash_password(secret.as_bytes(), &salt).expect("default parameters are valid");
     hash.to_string()
 }
 

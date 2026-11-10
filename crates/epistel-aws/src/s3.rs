@@ -18,11 +18,7 @@ pub struct S3BlobStore {
 
 impl S3BlobStore {
     pub fn new(client: Client, bucket: impl Into<String>, prefix: impl Into<String>) -> Self {
-        Self {
-            client,
-            bucket: bucket.into(),
-            prefix: prefix.into(),
-        }
+        Self { client, bucket: bucket.into(), prefix: prefix.into() }
     }
 
     fn key(&self, id: BlobId) -> String {
@@ -47,13 +43,7 @@ impl BlobStore for S3BlobStore {
     }
 
     async fn get(&self, id: BlobId) -> Result<Bytes> {
-        let response = self
-            .client
-            .get_object()
-            .bucket(&self.bucket)
-            .key(self.key(id))
-            .send()
-            .await;
+        let response = self.client.get_object().bucket(&self.bucket).key(self.key(id)).send().await;
         let output = match response {
             Ok(output) => output,
             Err(error) if error.as_service_error().is_some_and(|e| e.is_no_such_key()) => return Err(Error::NotFound),
@@ -64,13 +54,7 @@ impl BlobStore for S3BlobStore {
 
     async fn delete(&self, id: BlobId) -> Result<()> {
         // S3 answers success for an object that is not there, which is the behaviour the trait asks for.
-        self.client
-            .delete_object()
-            .bucket(&self.bucket)
-            .key(self.key(id))
-            .send()
-            .await
-            .map_err(fault)?;
+        self.client.delete_object().bucket(&self.bucket).key(self.key(id)).send().await.map_err(fault)?;
         Ok(())
     }
 }

@@ -4,7 +4,7 @@ use std::collections::BTreeSet;
 use std::fmt;
 use std::num::NonZeroU32;
 use std::ops::BitOr;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use crate::address::EmailAddress;
 use crate::id::{AccountId, BlobId, CredentialId, MailboxId};
@@ -186,10 +186,7 @@ pub struct UidRange {
 
 impl UidRange {
     /// Every UID.
-    pub const ALL: Self = Self {
-        first: Uid::FIRST,
-        last: Uid::MAX,
-    };
+    pub const ALL: Self = Self { first: Uid::FIRST, last: Uid::MAX };
 
     /// A range holding one UID.
     pub fn single(uid: Uid) -> Self {
@@ -262,10 +259,7 @@ impl SystemFlags {
 
     /// The IMAP names of the flags that are set.
     pub fn names(self) -> impl Iterator<Item = &'static str> {
-        Self::NAMES
-            .into_iter()
-            .filter(move |(flag, _)| self.contains(*flag))
-            .map(|(_, name)| name)
+        Self::NAMES.into_iter().filter(move |(flag, _)| self.contains(*flag)).map(|(_, name)| name)
     }
 }
 
@@ -335,10 +329,7 @@ impl Flags {
 
 impl From<SystemFlags> for Flags {
     fn from(system: SystemFlags) -> Self {
-        Self {
-            system,
-            keywords: BTreeSet::new(),
-        }
+        Self { system, keywords: BTreeSet::new() }
     }
 }
 
@@ -348,6 +339,15 @@ pub enum FlagChange {
     Replace(Flags),
     Add(Flags),
     Remove(Flags),
+}
+
+/// Makes an append happen at most once.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Once {
+    /// Names the delivery. A second append with the same key is refused, in whatever mailbox.
+    pub key: String,
+    /// How long the key is remembered. Longer than the source can keep offering the message.
+    pub remember_for: Duration,
 }
 
 /// What is needed to add a message to a mailbox.
@@ -360,6 +360,9 @@ pub struct NewMessage {
     /// When the message arrived, as IMAP reports it.
     pub internal_date: SystemTime,
     pub flags: Flags,
+    /// Set when the same message may be offered more than once, as mail from an inbound source
+    /// is. Leave empty for a message that a client appends or copies.
+    pub once: Option<Once>,
 }
 
 /// A message as it sits in one mailbox.

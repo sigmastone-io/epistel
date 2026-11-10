@@ -111,11 +111,7 @@ impl InboundSource for MemoryInboundSource {
     }
 
     async fn fetch(&self, message: &InboundMessage) -> Result<Bytes> {
-        lock(&self.state)
-            .in_flight
-            .get(&message.receipt)
-            .map(|entry| entry.raw.clone())
-            .ok_or(Error::NotFound)
+        lock(&self.state).in_flight.get(&message.receipt).map(|entry| entry.raw.clone()).ok_or(Error::NotFound)
     }
 
     async fn acknowledge(&self, message: &InboundMessage) -> Result<()> {

@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::num::NonZeroU32;
 use std::sync::Mutex;
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use async_trait::async_trait;
 
@@ -57,9 +57,7 @@ impl State {
     }
 
     fn name_taken(&self, account: AccountId, name: &MailboxName) -> bool {
-        self.mailboxes
-            .values()
-            .any(|entry| entry.mailbox.account == account && entry.mailbox.name == *name)
+        self.mailboxes.values().any(|entry| entry.mailbox.account == account && entry.mailbox.name == *name)
     }
 
     /// Drops one reference to each blob and returns those left without any.
@@ -95,13 +93,7 @@ impl MetadataStore for MemoryMetadataStore {
             created: SystemTime::now(),
         };
         state.addresses.insert(pattern, account.id);
-        state.accounts.insert(
-            account.id,
-            AccountEntry {
-                account: account.clone(),
-                credentials: Vec::new(),
-            },
-        );
+        state.accounts.insert(account.id, AccountEntry { account: account.clone(), credentials: Vec::new() });
         Ok(account)
     }
 
@@ -111,11 +103,7 @@ impl MetadataStore for MemoryMetadataStore {
 
     async fn find_account_by_login(&self, login: &EmailAddress) -> Result<Option<Account>> {
         let state = lock(&self.state);
-        Ok(state
-            .accounts
-            .values()
-            .find(|entry| entry.account.primary_address == *login)
-            .map(|e| e.account.clone()))
+        Ok(state.accounts.values().find(|entry| entry.account.primary_address == *login).map(|e| e.account.clone()))
     }
 
     async fn list_accounts(&self) -> Result<Vec<Account>> {
@@ -160,10 +148,7 @@ impl MetadataStore for MemoryMetadataStore {
     async fn touch_credential(&self, account: AccountId, credential: CredentialId, at: SystemTime) -> Result<()> {
         let mut state = lock(&self.state);
         let credentials = &mut state.account(account)?.credentials;
-        let found = credentials
-            .iter_mut()
-            .find(|c| c.id == credential)
-            .ok_or(Error::NotFound)?;
+        let found = credentials.iter_mut().find(|c| c.id == credential).ok_or(Error::NotFound)?;
         found.last_used = Some(at);
         Ok(())
     }
@@ -171,10 +156,7 @@ impl MetadataStore for MemoryMetadataStore {
     async fn remove_credential(&self, account: AccountId, credential: CredentialId) -> Result<()> {
         let mut state = lock(&self.state);
         let credentials = &mut state.account(account)?.credentials;
-        let position = credentials
-            .iter()
-            .position(|c| c.id == credential)
-            .ok_or(Error::NotFound)?;
+        let position = credentials.iter().position(|c| c.id == credential).ok_or(Error::NotFound)?;
         credentials.remove(position);
         Ok(())
     }
@@ -199,12 +181,7 @@ impl MetadataStore for MemoryMetadataStore {
     async fn list_addresses(&self, account: AccountId) -> Result<Vec<AddressPattern>> {
         let mut state = lock(&self.state);
         state.account(account)?;
-        Ok(state
-            .addresses
-            .iter()
-            .filter(|(_, owner)| **owner == account)
-            .map(|(p, _)| p.clone())
-            .collect())
+        Ok(state.addresses.iter().filter(|(_, owner)| **owner == account).map(|(p, _)| p.clone()).collect())
     }
 
     async fn remove_address(&self, pattern: &AddressPattern) -> Result<()> {
@@ -243,13 +220,7 @@ impl MetadataStore for MemoryMetadataStore {
             next_uid: Uid::FIRST,
             highest_modseq: ModSeq::default(),
         };
-        state.mailboxes.insert(
-            mailbox.id,
-            MailboxEntry {
-                mailbox: mailbox.clone(),
-                messages: BTreeMap::new(),
-            },
-        );
+        state.mailboxes.insert(mailbox.id, MailboxEntry { mailbox: mailbox.clone(), messages: BTreeMap::new() });
         Ok(mailbox)
     }
 
@@ -260,22 +231,15 @@ impl MetadataStore for MemoryMetadataStore {
     async fn find_mailbox(&self, account: AccountId, name: &MailboxName) -> Result<Option<Mailbox>> {
         let mut state = lock(&self.state);
         state.account(account)?;
-        let found = state
-            .mailboxes
-            .values()
-            .find(|e| e.mailbox.account == account && e.mailbox.name == *name);
+        let found = state.mailboxes.values().find(|e| e.mailbox.account == account && e.mailbox.name == *name);
         Ok(found.map(|entry| entry.mailbox.clone()))
     }
 
     async fn list_mailboxes(&self, account: AccountId) -> Result<Vec<Mailbox>> {
         let mut state = lock(&self.state);
         state.account(account)?;
-        let mut mailboxes: Vec<_> = state
-            .mailboxes
-            .values()
-            .filter(|e| e.mailbox.account == account)
-            .map(|e| e.mailbox.clone())
-            .collect();
+        let mut mailboxes: Vec<_> =
+            state.mailboxes.values().filter(|e| e.mailbox.account == account).map(|e| e.mailbox.clone()).collect();
         mailboxes.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(mailboxes)
     }
@@ -304,6 +268,15 @@ impl MetadataStore for MemoryMetadataStore {
 
     async fn append_message(&self, mailbox: MailboxId, new: NewMessage) -> Result<MessageRecord> {
         let mut state = lock(&self.state);
+        state.mailbox(mailbox)?;
+        if let Some(once) = &new.once {
+            let now = SystemTime::now();
+            state.deliveries.retain(|_, expires| *expires > now);
+            if state.deliveries.contains_key(&once.key) {
+                return Err(Error::AlreadyExists);
+            }
+            state.deliveries.insert(once.key.clone(), now + once.remember_for);
+        }
         let entry = state.mailbox(mailbox)?;
         let uid = entry.mailbox.next_uid;
         // The last UID is never given out, so that `next_uid` always has a value to hold.
@@ -331,11 +304,7 @@ impl MetadataStore for MemoryMetadataStore {
         if range.first > range.last {
             return Ok(Vec::new());
         }
-        Ok(entry
-            .messages
-            .range(range.first..=range.last)
-            .map(|(_, record)| record.clone())
-            .collect())
+        Ok(entry.messages.range(range.first..=range.last).map(|(_, record)| record.clone()).collect())
     }
 
     async fn update_flags(&self, mailbox: MailboxId, uid: Uid, change: FlagChange) -> Result<MessageRecord> {
@@ -362,16 +331,5 @@ impl MetadataStore for MemoryMetadataStore {
             uids: removed.iter().map(|record| record.uid).collect(),
             released_blobs: state.release(removed.iter().map(|record| record.blob)),
         })
-    }
-
-    async fn claim_delivery(&self, key: &str, ttl: Duration) -> Result<bool> {
-        let mut state = lock(&self.state);
-        let now = SystemTime::now();
-        state.deliveries.retain(|_, expires| *expires > now);
-        if state.deliveries.contains_key(key) {
-            return Ok(false);
-        }
-        state.deliveries.insert(key.to_owned(), now + ttl);
-        Ok(true)
     }
 }

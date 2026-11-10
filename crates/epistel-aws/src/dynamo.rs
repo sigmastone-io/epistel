@@ -132,12 +132,7 @@ fn item<const N: usize>(pk: impl Into<String>, sk: impl Into<String>, attributes
 }
 
 fn values<const N: usize>(pairs: [(&str, Av); N]) -> Option<HashMap<String, Av>> {
-    Some(
-        pairs
-            .into_iter()
-            .map(|(name, value)| (name.to_owned(), value))
-            .collect(),
-    )
+    Some(pairs.into_iter().map(|(name, value)| (name.to_owned(), value)).collect())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -149,10 +144,7 @@ fn malformed(attribute: &str) -> Error {
 }
 
 fn text<'a>(item: &'a Item, name: &str) -> Result<&'a str> {
-    item.get(name)
-        .and_then(|value| value.as_s().ok())
-        .map(String::as_str)
-        .ok_or_else(|| malformed(name))
+    item.get(name).and_then(|value| value.as_s().ok()).map(String::as_str).ok_or_else(|| malformed(name))
 }
 
 fn parsed<T: FromStr>(item: &Item, name: &str) -> Result<T> {
@@ -160,18 +152,12 @@ fn parsed<T: FromStr>(item: &Item, name: &str) -> Result<T> {
 }
 
 fn number<T: FromStr>(item: &Item, name: &str) -> Result<T> {
-    let digits = item
-        .get(name)
-        .and_then(|value| value.as_n().ok())
-        .ok_or_else(|| malformed(name))?;
+    let digits = item.get(name).and_then(|value| value.as_n().ok()).ok_or_else(|| malformed(name))?;
     digits.parse().map_err(|_| malformed(name))
 }
 
 fn flag(item: &Item, name: &str) -> bool {
-    item.get(name)
-        .and_then(|value| value.as_bool().ok())
-        .copied()
-        .unwrap_or(false)
+    item.get(name).and_then(|value| value.as_bool().ok()).copied().unwrap_or(false)
 }
 
 fn time(item: &Item, name: &str) -> Result<SystemTime> {
@@ -182,9 +168,7 @@ fn time(item: &Item, name: &str) -> Result<SystemTime> {
 
 /// The identifier that follows `prefix` in a key attribute.
 fn id_after<T: FromStr>(item: &Item, attribute: &str, prefix: &str) -> Result<T> {
-    let rest = text(item, attribute)?
-        .strip_prefix(prefix)
-        .ok_or_else(|| malformed(attribute))?;
+    let rest = text(item, attribute)?.strip_prefix(prefix).ok_or_else(|| malformed(attribute))?;
     rest.parse().map_err(|_| malformed(attribute))
 }
 
@@ -215,11 +199,7 @@ fn credential_from(item: &Item) -> Result<Credential> {
         label: text(item, "cred_label")?.to_owned(),
         secret_hash: text(item, "secret_hash")?.to_owned(),
         created: time(item, "created_at")?,
-        last_used: if item.contains_key("last_used") {
-            Some(time(item, "last_used")?)
-        } else {
-            None
-        },
+        last_used: if item.contains_key("last_used") { Some(time(item, "last_used")?) } else { None },
     })
 }
 
@@ -238,10 +218,7 @@ fn mailbox_from(item: &Item) -> Result<Mailbox> {
         None => None,
         Some(_) => {
             let stored = text(item, "mailbox_role")?;
-            let found = ROLES
-                .iter()
-                .find(|(_, name)| *name == stored)
-                .ok_or_else(|| malformed("mailbox_role"))?;
+            let found = ROLES.iter().find(|(_, name)| *name == stored).ok_or_else(|| malformed("mailbox_role"))?;
             Some(found.0)
         }
     };
@@ -274,10 +251,7 @@ fn message_from(mailbox: MailboxId, item: &Item) -> Result<MessageRecord> {
         blob: parsed(item, "blob_id")?,
         size: number(item, "byte_size")?,
         internal_date: time(item, "internal_date")?,
-        flags: Flags {
-            system: SystemFlags::from_bits(number(item, "flag_bits")?),
-            keywords,
-        },
+        flags: Flags { system: SystemFlags::from_bits(number(item, "flag_bits")?), keywords },
         modseq: ModSeq(number(item, "mod_seq")?),
     })
 }
@@ -294,18 +268,14 @@ fn keyword_value(flags: &Flags) -> Option<Av> {
 /// Whether a failed call failed because its condition did not hold.
 macro_rules! condition_failed {
     ($error:expr) => {
-        $error
-            .as_service_error()
-            .is_some_and(|service| service.is_conditional_check_failed_exception())
+        $error.as_service_error().is_some_and(|service| service.is_conditional_check_failed_exception())
     };
 }
 
 /// Whether a failed call collided with a transaction on the same item and is worth repeating.
 macro_rules! collided {
     ($error:expr) => {
-        $error
-            .as_service_error()
-            .is_some_and(|service| service.is_transaction_conflict_exception())
+        $error.as_service_error().is_some_and(|service| service.is_transaction_conflict_exception())
     };
 }
 
@@ -315,10 +285,7 @@ async fn back_off(attempt: u32) {
 
 impl DynamoMetadataStore {
     pub fn new(client: Client, table: impl Into<String>) -> Self {
-        Self {
-            client,
-            table: table.into(),
-        }
+        Self { client, table: table.into() }
     }
 
     /// Creates the table with on-demand billing and waits until it can be used.
@@ -327,10 +294,7 @@ impl DynamoMetadataStore {
     /// time-to-live on `expires_at`, from the infrastructure module.
     pub async fn create_table(client: &Client, table: &str) -> Result<()> {
         let attribute = |name: &str| {
-            AttributeDefinition::builder()
-                .attribute_name(name)
-                .attribute_type(ScalarAttributeType::S)
-                .build()
+            AttributeDefinition::builder().attribute_name(name).attribute_type(ScalarAttributeType::S).build()
         };
         let key_part = |name: &str, kind| KeySchemaElement::builder().attribute_name(name).key_type(kind).build();
         client
@@ -417,13 +381,8 @@ impl DynamoMetadataStore {
                     .consistent_read(true)
                     .build()
                     .map_err(fault)?;
-                let output = self
-                    .client
-                    .batch_get_item()
-                    .request_items(&self.table, request)
-                    .send()
-                    .await
-                    .map_err(fault)?;
+                let output =
+                    self.client.batch_get_item().request_items(&self.table, request).send().await.map_err(fault)?;
                 if let Some(mut responses) = output.responses {
                     found.extend(responses.remove(&self.table).unwrap_or_default());
                 }
@@ -449,26 +408,16 @@ impl DynamoMetadataStore {
     }
 
     fn put_new(&self, item: Item) -> TransactWriteItem {
-        let put = self
-            .put(item)
-            .condition_expression("attribute_not_exists(pk)")
-            .build()
-            .expect("table and item set");
+        let put = self.put(item).condition_expression("attribute_not_exists(pk)").build().expect("table and item set");
         TransactWriteItem::builder().put(put).build()
     }
 
     fn put_any(&self, item: Item) -> TransactWriteItem {
-        TransactWriteItem::builder()
-            .put(self.put(item).build().expect("table and item set"))
-            .build()
+        TransactWriteItem::builder().put(self.put(item).build().expect("table and item set")).build()
     }
 
     fn delete(&self, key: Item) -> TransactWriteItem {
-        let delete = Delete::builder()
-            .table_name(&self.table)
-            .set_key(Some(key))
-            .build()
-            .expect("table and key set");
+        let delete = Delete::builder().table_name(&self.table).set_key(Some(key)).build().expect("table and key set");
         TransactWriteItem::builder().delete(delete).build()
     }
 
@@ -520,35 +469,22 @@ impl DynamoMetadataStore {
     /// its condition was what stopped it.
     async fn transact(&self, items: Vec<TransactWriteItem>) -> Result<Option<Vec<bool>>> {
         for attempt in 0..ATTEMPTS {
-            let sent = self
-                .client
-                .transact_write_items()
-                .set_transact_items(Some(items.clone()))
-                .send()
-                .await;
+            let sent = self.client.transact_write_items().set_transact_items(Some(items.clone())).send().await;
             let error = match sent {
                 Ok(_) => return Ok(None),
                 Err(error) => error,
             };
             let codes: Vec<&str> = match error.as_service_error() {
-                Some(TransactWriteItemsError::TransactionCanceledException(cancelled)) => cancelled
-                    .cancellation_reasons()
-                    .iter()
-                    .map(|reason| reason.code().unwrap_or("None"))
-                    .collect(),
+                Some(TransactWriteItemsError::TransactionCanceledException(cancelled)) => {
+                    cancelled.cancellation_reasons().iter().map(|reason| reason.code().unwrap_or("None")).collect()
+                }
                 Some(TransactWriteItemsError::TransactionInProgressException(_)) => vec!["TransactionConflict"],
                 _ => return Err(fault(error)),
             };
             if codes.contains(&"ConditionalCheckFailed") {
-                return Ok(Some(
-                    codes.iter().map(|code| *code == "ConditionalCheckFailed").collect(),
-                ));
+                return Ok(Some(codes.iter().map(|code| *code == "ConditionalCheckFailed").collect()));
             }
-            let busy = [
-                "TransactionConflict",
-                "ThrottlingError",
-                "ProvisionedThroughputExceeded",
-            ];
+            let busy = ["TransactionConflict", "ThrottlingError", "ProvisionedThroughputExceeded"];
             if !codes.iter().any(|code| busy.contains(code)) {
                 return Err(fault(error));
             }
@@ -615,11 +551,7 @@ impl DynamoMetadataStore {
     async fn drop_record(&self, mailbox: MailboxId, record: &MessageRecord) -> Result<Option<bool>> {
         let refused = self
             .transact(vec![
-                self.delete_if(
-                    key(mailbox_pk(mailbox), message_sk(record.uid)),
-                    "attribute_exists(pk)",
-                    None,
-                ),
+                self.delete_if(key(mailbox_pk(mailbox), message_sk(record.uid)), "attribute_exists(pk)", None),
                 self.update(
                     key(blob_pk(record.blob), META),
                     "ADD ref_count :minus_one",
@@ -667,10 +599,7 @@ impl MetadataStore for DynamoMetadataStore {
                 self.put_new(item(
                     address_pk(&pattern),
                     META,
-                    [
-                        ("account_id", s(account.id.to_string())),
-                        ("is_primary", Av::Bool(true)),
-                    ],
+                    [("account_id", s(account.id.to_string())), ("is_primary", Av::Bool(true))],
                 )),
                 self.put_any(item(
                     &pk,
@@ -701,10 +630,7 @@ impl MetadataStore for DynamoMetadataStore {
     }
 
     async fn find_account_by_login(&self, login: &EmailAddress) -> Result<Option<Account>> {
-        let Some(owner) = self
-            .get(address_pk(&AddressPattern::Exact(login.clone())), META)
-            .await?
-        else {
+        let Some(owner) = self.get(address_pk(&AddressPattern::Exact(login.clone())), META).await? else {
             return Ok(None);
         };
         if !flag(&owner, "is_primary") {
@@ -723,12 +649,7 @@ impl MetadataStore for DynamoMetadataStore {
         for entry in &directory {
             keys.push(key(account_pk(parsed(entry, "account_id")?), META));
         }
-        let mut accounts = self
-            .batch_get(keys)
-            .await?
-            .iter()
-            .map(account_from)
-            .collect::<Result<Vec<_>>>()?;
+        let mut accounts = self.batch_get(keys).await?.iter().map(account_from).collect::<Result<Vec<_>>>()?;
         accounts.sort_by(|a, b| a.primary_address.cmp(&b.primary_address));
         Ok(accounts)
     }
@@ -788,10 +709,7 @@ impl MetadataStore for DynamoMetadataStore {
                 ("created_at", time_value(credential.created)),
             ],
         );
-        match self
-            .transact(vec![self.require(key(&pk, META)), self.put_any(stored)])
-            .await?
-        {
+        match self.transact(vec![self.require(key(&pk, META)), self.put_any(stored)]).await? {
             None => Ok(credential),
             Some(_) => Err(Error::NotFound),
         }
@@ -819,10 +737,7 @@ impl MetadataStore for DynamoMetadataStore {
 
     async fn remove_credential(&self, account: AccountId, credential: CredentialId) -> Result<()> {
         let target = key(account_pk(account), credential_sk(credential));
-        match self
-            .transact(vec![self.delete_if(target, "attribute_exists(pk)", None)])
-            .await?
-        {
+        match self.transact(vec![self.delete_if(target, "attribute_exists(pk)", None)]).await? {
             None => Ok(()),
             Some(_) => Err(Error::NotFound),
         }
@@ -926,22 +841,12 @@ impl MetadataStore for DynamoMetadataStore {
             ],
         );
         if let Some(role) = role {
-            let name = ROLES
-                .iter()
-                .find(|(known, _)| *known == role)
-                .expect("every role has a name")
-                .1;
+            let name = ROLES.iter().find(|(known, _)| *known == role).expect("every role has a name").1;
             stored.insert("mailbox_role".to_owned(), s(name));
         }
-        let reservation = item(
-            account_pk(account),
-            name_sk(&mailbox.name),
-            [("mailbox_id", s(mailbox.id.to_string()))],
-        );
-        match self
-            .transact(vec![self.put_new(reservation), self.put_any(stored)])
-            .await?
-        {
+        let reservation =
+            item(account_pk(account), name_sk(&mailbox.name), [("mailbox_id", s(mailbox.id.to_string()))]);
+        match self.transact(vec![self.put_new(reservation), self.put_any(stored)]).await? {
             None => Ok(mailbox),
             Some(_) => Err(Error::AlreadyExists),
         }
@@ -971,12 +876,7 @@ impl MetadataStore for DynamoMetadataStore {
         for reservation in &reservations {
             keys.push(key(mailbox_pk(parsed(reservation, "mailbox_id")?), META));
         }
-        let mut mailboxes = self
-            .batch_get(keys)
-            .await?
-            .iter()
-            .map(mailbox_from)
-            .collect::<Result<Vec<_>>>()?;
+        let mut mailboxes = self.batch_get(keys).await?.iter().map(mailbox_from).collect::<Result<Vec<_>>>()?;
         mailboxes.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(mailboxes)
     }
@@ -987,11 +887,7 @@ impl MetadataStore for DynamoMetadataStore {
         let this = values([(":mailbox", s(id.to_string()))]);
         let refused = self
             .transact(vec![
-                self.put_new(item(
-                    &account_pk,
-                    name_sk(&new_name),
-                    [("mailbox_id", s(id.to_string()))],
-                )),
+                self.put_new(item(&account_pk, name_sk(&new_name), [("mailbox_id", s(id.to_string()))])),
                 self.delete_if(key(&account_pk, name_sk(&mailbox.name)), "mailbox_id = :mailbox", this),
                 self.update(
                     key(mailbox_pk(id), META),
@@ -1002,10 +898,7 @@ impl MetadataStore for DynamoMetadataStore {
             ])
             .await?;
         match refused {
-            None => Ok(Mailbox {
-                name: new_name,
-                ..mailbox
-            }),
+            None => Ok(Mailbox { name: new_name, ..mailbox }),
             Some(reasons) if reasons[0] => Err(Error::AlreadyExists),
             // Renamed or deleted by someone else between the read and the write.
             Some(_) => Err(Error::NotFound),
@@ -1029,11 +922,7 @@ impl MetadataStore for DynamoMetadataStore {
         let this = values([(":mailbox", s(id.to_string()))]);
         let refused = self
             .transact(vec![
-                self.delete_if(
-                    key(account_pk(mailbox.account), name_sk(&mailbox.name)),
-                    "mailbox_id = :mailbox",
-                    this,
-                ),
+                self.delete_if(key(account_pk(mailbox.account), name_sk(&mailbox.name)), "mailbox_id = :mailbox", this),
                 self.delete_if(key(mailbox_pk(id), META), "attribute_exists(pk)", None),
             ])
             .await?;
@@ -1087,19 +976,34 @@ impl MetadataStore for DynamoMetadataStore {
         if let Some(keywords) = keyword_value(&record.flags) {
             stored.insert("keyword_set".to_owned(), keywords);
         }
-        let refused = self
-            .transact(vec![
-                self.put_new(stored),
-                self.update(
-                    key(blob_pk(record.blob), META),
-                    "ADD ref_count :one",
-                    "attribute_not_exists(is_released)",
-                    values([(":one", n(1))]),
-                ),
-            ])
-            .await?;
-        match refused {
+        let mut writes = vec![
+            self.put_new(stored),
+            self.update(
+                key(blob_pk(record.blob), META),
+                "ADD ref_count :one",
+                "attribute_not_exists(is_released)",
+                values([(":one", n(1))]),
+            ),
+        ];
+        if let Some(once) = &new.once {
+            // The delivery's key goes in with the record: both are stored, or neither.
+            let now = SystemTime::now();
+            let mark = item(
+                format!("INGEST#{}", once.key),
+                META,
+                [("expires_at", n(epoch_seconds(now + once.remember_for).max(1)))],
+            );
+            let put = self
+                .put(mark)
+                .condition_expression("attribute_not_exists(pk) OR expires_at <= :now")
+                .set_expression_attribute_values(values([(":now", n(epoch_seconds(now)))]))
+                .build()
+                .expect("table and item set");
+            writes.push(TransactWriteItem::builder().put(put).build());
+        }
+        match self.transact(writes).await? {
             None => Ok(record),
+            Some(reasons) if reasons.get(2) == Some(&true) => Err(Error::AlreadyExists),
             Some(reasons) if reasons[1] => Err(Error::Conflict("the blob was released already")),
             Some(_) => Err(Error::unavailable("a UID was handed out twice")),
         }
@@ -1110,22 +1014,14 @@ impl MetadataStore for DynamoMetadataStore {
         if range.first > range.last {
             return Ok(Vec::new());
         }
-        let items = self
-            .query(
-                mailbox_pk(mailbox),
-                Some((&message_sk(range.first), &message_sk(range.last))),
-            )
-            .await?;
+        let items = self.query(mailbox_pk(mailbox), Some((&message_sk(range.first), &message_sk(range.last)))).await?;
         items.iter().map(|stored| message_from(mailbox, stored)).collect()
     }
 
     async fn update_flags(&self, mailbox: MailboxId, uid: Uid, change: FlagChange) -> Result<MessageRecord> {
         let target = key(mailbox_pk(mailbox), message_sk(uid));
         for attempt in 0..ATTEMPTS {
-            let stored = self
-                .get(mailbox_pk(mailbox), message_sk(uid))
-                .await?
-                .ok_or(Error::NotFound)?;
+            let stored = self.get(mailbox_pk(mailbox), message_sk(uid)).await?.ok_or(Error::NotFound)?;
             let mut record = message_from(mailbox, &stored)?;
             let read_at = record.modseq;
             if !record.flags.apply(&change) {
@@ -1145,14 +1041,8 @@ impl MetadataStore for DynamoMetadataStore {
                 None => "SET flag_bits = :flags, mod_seq = :modseq REMOVE keyword_set",
             };
             // Only if nobody changed the message since it was read; otherwise read again and redo.
-            let written = self
-                .update_item(
-                    target.clone(),
-                    expression,
-                    "mod_seq = :read_at",
-                    Some(expression_values),
-                )
-                .await?;
+            let written =
+                self.update_item(target.clone(), expression, "mod_seq = :read_at", Some(expression_values)).await?;
             if written.is_some() {
                 return Ok(record);
             }
@@ -1164,10 +1054,7 @@ impl MetadataStore for DynamoMetadataStore {
     async fn expunge(&self, mailbox: MailboxId, uids: &[Uid]) -> Result<Expunged> {
         self.require_mailbox(mailbox).await?;
         let wanted: BTreeSet<Uid> = uids.iter().copied().collect();
-        let keys = wanted
-            .iter()
-            .map(|uid| key(mailbox_pk(mailbox), message_sk(*uid)))
-            .collect();
+        let keys = wanted.iter().map(|uid| key(mailbox_pk(mailbox), message_sk(*uid))).collect();
         let mut records = self
             .batch_get(keys)
             .await?
@@ -1189,28 +1076,5 @@ impl MetadataStore for DynamoMetadataStore {
             self.next_modseq(mailbox).await?;
         }
         Ok(expunged)
-    }
-
-    async fn claim_delivery(&self, key_text: &str, ttl: Duration) -> Result<bool> {
-        let now = SystemTime::now();
-        let claim = item(
-            format!("INGEST#{key_text}"),
-            META,
-            [("expires_at", n(epoch_seconds(now + ttl).max(1)))],
-        );
-        let sent = self
-            .client
-            .put_item()
-            .table_name(&self.table)
-            .set_item(Some(claim))
-            .condition_expression("attribute_not_exists(pk) OR expires_at <= :now")
-            .set_expression_attribute_values(values([(":now", n(epoch_seconds(now)))]))
-            .send()
-            .await;
-        match sent {
-            Ok(_) => Ok(true),
-            Err(error) if condition_failed!(error) => Ok(false),
-            Err(error) => Err(fault(error)),
-        }
     }
 }

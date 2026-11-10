@@ -14,7 +14,7 @@ env:
 jobs:
   check:
     runs-on: ubuntu-latest
-    # Stand-ins for DynamoDB and S3, so that the cloud backends run their conformance suites here.
+    # Stand-ins for DynamoDB, S3 and SQS, so that the cloud backends run their conformance suites here.
     services:
       dynamodb:
         image: amazon/dynamodb-local
@@ -24,9 +24,14 @@ jobs:
         image: adobe/s3mock
         ports:
           - 9090:9090
+      sqs:
+        image: softwaremill/elasticmq-native
+        ports:
+          - 9324:9324
     env:
       EPISTEL_TEST_DYNAMODB_ENDPOINT: http://localhost:8000
       EPISTEL_TEST_S3_ENDPOINT: http://localhost:9090
+      EPISTEL_TEST_SQS_ENDPOINT: http://localhost:9324
       # The emulators check that a request is signed, never by whom.
       AWS_ACCESS_KEY_ID: local
       AWS_SECRET_ACCESS_KEY: locallocal

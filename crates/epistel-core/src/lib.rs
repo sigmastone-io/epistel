@@ -21,6 +21,7 @@ pub mod directory;
 pub mod error;
 pub mod id;
 pub mod inbound;
+pub mod ingest;
 pub mod memory;
 pub mod metadata;
 pub mod model;

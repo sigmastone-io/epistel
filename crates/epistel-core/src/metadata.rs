@@ -1,6 +1,6 @@
 //! The metadata store: everything about mail except the raw messages themselves.
 
-use std::time::{Duration, SystemTime};
+use std::time::SystemTime;
 
 use async_trait::async_trait;
 
@@ -121,6 +121,11 @@ pub trait MetadataStore: Send + Sync + 'static {
     /// by an earlier [`expunge`](Self::expunge) or [`delete_mailbox`](Self::delete_mailbox): the
     /// caller was told to delete it, so nothing may point at it again. A backend that cannot
     /// tell may accept such an append; callers must not rely on either.
+    ///
+    /// With [`NewMessage::once`] set, the key is recorded together with the record, and an
+    /// append whose key is still remembered is refused with `AlreadyExists` and changes nothing
+    /// but, possibly, the mailbox's counters. Inbound sources offer a message at least once;
+    /// this is what makes filing happen exactly once.
     async fn append_message(&self, mailbox: MailboxId, new: NewMessage) -> Result<MessageRecord>;
 
     /// The records whose UID lies in `range`, ascending.
@@ -139,12 +144,4 @@ pub trait MetadataStore: Send + Sync + 'static {
     /// blob; the result lists the blobs left without any. If anything was removed the mailbox
     /// moves to a new modification sequence.
     async fn expunge(&self, mailbox: MailboxId, uids: &[Uid]) -> Result<Expunged>;
-
-    // -- ingest --------------------------------------------------------------------------------
-
-    /// Claims the right to perform a delivery identified by `key`.
-    ///
-    /// Returns `true` to exactly one caller per key until `ttl` has passed, and `false` to every
-    /// other. Inbound sources deliver at least once; this is what makes filing happen once.
-    async fn claim_delivery(&self, key: &str, ttl: Duration) -> Result<bool>;
 }

@@ -48,10 +48,7 @@ pub enum PasswordCommand {
 #[derive(Subcommand)]
 pub enum AddressCommand {
     /// Gives an account another address, or a whole domain as `*@domain`.
-    Add {
-        pattern: AddressPattern,
-        account: EmailAddress,
-    },
+    Add { pattern: AddressPattern, account: EmailAddress },
     /// Lists what an account receives mail for.
     List { account: EmailAddress },
     /// Takes an address away from its account.
@@ -89,11 +86,7 @@ fn about(what: impl ToString) -> impl FnOnce(Error) -> AdminError {
 }
 
 async fn account_of(backends: &Backends, login: &EmailAddress) -> Result<Account, AdminError> {
-    let found = backends
-        .metadata
-        .find_account_by_login(login)
-        .await
-        .map_err(AdminError::Backend)?;
+    let found = backends.metadata.find_account_by_login(login).await.map_err(AdminError::Backend)?;
     found.ok_or_else(|| AdminError::NoSuchAccount(login.clone()))
 }
 
@@ -112,13 +105,8 @@ pub async fn run(backends: &Backends, command: AdminCommand) -> Result<Vec<Strin
     let store = &*backends.metadata;
     match command {
         AdminCommand::Account(AccountCommand::Add { address, name }) => {
-            let new = NewAccount {
-                primary_address: address.clone(),
-                display_name: name,
-            };
-            let account = directory::provision_account(store, new)
-                .await
-                .map_err(about(&address))?;
+            let new = NewAccount { primary_address: address.clone(), display_name: name };
+            let account = directory::provision_account(store, new).await.map_err(about(&address))?;
             Ok(vec![
                 format!("created account {} ({})", account.primary_address, account.id),
                 format!("next: epistel password new {}", account.primary_address),
@@ -142,18 +130,12 @@ pub async fn run(backends: &Backends, command: AdminCommand) -> Result<Vec<Strin
         }
         AdminCommand::Account(AccountCommand::Suspend { address }) => {
             let account = account_of(backends, &address).await?;
-            store
-                .set_account_state(account.id, AccountState::Suspended)
-                .await
-                .map_err(about(&address))?;
+            store.set_account_state(account.id, AccountState::Suspended).await.map_err(about(&address))?;
             Ok(vec![format!("suspended {address}")])
         }
         AdminCommand::Account(AccountCommand::Resume { address }) => {
             let account = account_of(backends, &address).await?;
-            store
-                .set_account_state(account.id, AccountState::Active)
-                .await
-                .map_err(about(&address))?;
+            store.set_account_state(account.id, AccountState::Active).await.map_err(about(&address))?;
             Ok(vec![format!("resumed {address}")])
         }
         AdminCommand::Account(AccountCommand::Remove { address }) => {
@@ -167,10 +149,7 @@ pub async fn run(backends: &Backends, command: AdminCommand) -> Result<Vec<Strin
                 }
             }
             store.delete_account(account.id).await.map_err(about(&address))?;
-            Ok(vec![format!(
-                "removed {address}: {} mailboxes, {blobs} stored messages",
-                mailboxes.len()
-            )])
+            Ok(vec![format!("removed {address}: {} mailboxes, {blobs} stored messages", mailboxes.len())])
         }
 
         AdminCommand::Password(PasswordCommand::New { address, label }) => {
@@ -202,9 +181,8 @@ pub async fn run(backends: &Backends, command: AdminCommand) -> Result<Vec<Strin
             Ok(credentials
                 .iter()
                 .map(|credential| {
-                    let used = credential
-                        .last_used
-                        .map_or_else(|| "never used".to_owned(), |at| format!("used {}", age(at)));
+                    let used =
+                        credential.last_used.map_or_else(|| "never used".to_owned(), |at| format!("used {}", age(at)));
                     format!(
                         "{}  created {:<12} {:<16} {}",
                         credential.id,
@@ -217,19 +195,13 @@ pub async fn run(backends: &Backends, command: AdminCommand) -> Result<Vec<Strin
         }
         AdminCommand::Password(PasswordCommand::Revoke { address, id }) => {
             let account = account_of(backends, &address).await?;
-            store
-                .remove_credential(account.id, id)
-                .await
-                .map_err(about(format!("app password {id}")))?;
+            store.remove_credential(account.id, id).await.map_err(about(format!("app password {id}")))?;
             Ok(vec![format!("revoked app password {id} of {address}")])
         }
 
         AdminCommand::Address(AddressCommand::Add { pattern, account }) => {
             let owner = account_of(backends, &account).await?;
-            store
-                .put_address(pattern.clone(), owner.id)
-                .await
-                .map_err(about(&pattern))?;
+            store.put_address(pattern.clone(), owner.id).await.map_err(about(&pattern))?;
             Ok(vec![format!("{account} now receives mail for {pattern}")])
         }
         AdminCommand::Address(AddressCommand::List { account }) => {
@@ -274,57 +246,24 @@ mod tests {
     }
 
     async fn add(backends: &Backends, login: &str) {
-        account(
-            backends,
-            AccountCommand::Add {
-                address: address(login),
-                name: "Ada".into(),
-            },
-        )
-        .await
-        .unwrap();
+        account(backends, AccountCommand::Add { address: address(login), name: "Ada".into() }).await.unwrap();
     }
 
     #[tokio::test]
     async fn an_account_can_be_created_listed_suspended_and_resumed() {
         let backends = backends().await;
         add(&backends, "ada@example.org").await;
-        let again = account(
-            &backends,
-            AccountCommand::Add {
-                address: address("ada@example.org"),
-                name: String::new(),
-            },
-        );
+        let again =
+            account(&backends, AccountCommand::Add { address: address("ada@example.org"), name: String::new() });
         assert!(matches!(again.await, Err(AdminError::Taken(_))));
 
-        account(
-            &backends,
-            AccountCommand::Suspend {
-                address: address("ada@example.org"),
-            },
-        )
-        .await
-        .unwrap();
+        account(&backends, AccountCommand::Suspend { address: address("ada@example.org") }).await.unwrap();
         let listed = account(&backends, AccountCommand::List).await.unwrap();
         assert!(listed[0].contains("ada@example.org") && listed[0].contains("suspended") && listed[0].contains("Ada"));
-        account(
-            &backends,
-            AccountCommand::Resume {
-                address: address("ada@example.org"),
-            },
-        )
-        .await
-        .unwrap();
+        account(&backends, AccountCommand::Resume { address: address("ada@example.org") }).await.unwrap();
         assert!(account(&backends, AccountCommand::List).await.unwrap()[0].contains("active"));
 
-        let nobody = account(
-            &backends,
-            AccountCommand::Suspend {
-                address: address("nobody@example.org"),
-            },
-        )
-        .await;
+        let nobody = account(&backends, AccountCommand::Suspend { address: address("nobody@example.org") }).await;
         assert!(matches!(nobody, Err(AdminError::NoSuchAccount(_))));
     }
 
@@ -332,45 +271,26 @@ mod tests {
     async fn a_new_password_is_shown_once_and_only_its_hash_is_stored() {
         let backends = backends().await;
         add(&backends, "ada@example.org").await;
-        let new = PasswordCommand::New {
-            address: address("ada@example.org"),
-            label: "laptop".into(),
-        };
+        let new = PasswordCommand::New { address: address("ada@example.org"), label: "laptop".into() };
         let printed = run(&backends, AdminCommand::Password(new)).await.unwrap();
         let secret = printed[2].trim().to_owned();
 
-        let owner = backends
-            .metadata
-            .find_account_by_login(&address("ada@example.org"))
-            .await
-            .unwrap()
-            .unwrap();
+        let owner = backends.metadata.find_account_by_login(&address("ada@example.org")).await.unwrap().unwrap();
         let stored = backends.metadata.list_credentials(owner.id).await.unwrap();
         assert_eq!(stored.len(), 1);
         assert!(!stored[0].secret_hash.contains(&secret));
         assert!(password::verify(&secret, &stored[0].secret_hash));
         assert!(!password::verify("something else", &stored[0].secret_hash));
 
-        let list = PasswordCommand::List {
-            address: address("ada@example.org"),
-        };
+        let list = PasswordCommand::List { address: address("ada@example.org") };
         let listed = run(&backends, AdminCommand::Password(list)).await.unwrap();
         assert!(listed[0].contains("laptop") && listed[0].contains("never used") && !listed[0].contains(&secret));
 
-        let revoke = PasswordCommand::Revoke {
-            address: address("ada@example.org"),
-            id: stored[0].id,
-        };
+        let revoke = PasswordCommand::Revoke { address: address("ada@example.org"), id: stored[0].id };
         run(&backends, AdminCommand::Password(revoke)).await.unwrap();
         assert!(backends.metadata.list_credentials(owner.id).await.unwrap().is_empty());
-        let revoke = PasswordCommand::Revoke {
-            address: address("ada@example.org"),
-            id: stored[0].id,
-        };
-        assert!(matches!(
-            run(&backends, AdminCommand::Password(revoke)).await,
-            Err(AdminError::Missing(_))
-        ));
+        let revoke = PasswordCommand::Revoke { address: address("ada@example.org"), id: stored[0].id };
+        assert!(matches!(run(&backends, AdminCommand::Password(revoke)).await, Err(AdminError::Missing(_))));
     }
 
     #[tokio::test]
@@ -381,40 +301,21 @@ mod tests {
         let pattern = |text: &str| text.parse::<AddressPattern>().unwrap();
         let command = |command| run(&backends, AdminCommand::Address(command));
 
-        command(AddressCommand::Add {
-            pattern: pattern("sales@example.org"),
-            account: address("ada@example.org"),
-        })
-        .await
-        .unwrap();
-        command(AddressCommand::Add {
-            pattern: pattern("*@example.org"),
-            account: address("ada@example.org"),
-        })
-        .await
-        .unwrap();
-        let taken = command(AddressCommand::Add {
-            pattern: pattern("sales@example.org"),
-            account: address("bob@example.org"),
-        });
+        command(AddressCommand::Add { pattern: pattern("sales@example.org"), account: address("ada@example.org") })
+            .await
+            .unwrap();
+        command(AddressCommand::Add { pattern: pattern("*@example.org"), account: address("ada@example.org") })
+            .await
+            .unwrap();
+        let taken =
+            command(AddressCommand::Add { pattern: pattern("sales@example.org"), account: address("bob@example.org") });
         assert!(matches!(taken.await, Err(AdminError::Taken(_))));
 
-        let listed = command(AddressCommand::List {
-            account: address("ada@example.org"),
-        })
-        .await
-        .unwrap();
+        let listed = command(AddressCommand::List { account: address("ada@example.org") }).await.unwrap();
         assert_eq!(listed, ["ada@example.org", "sales@example.org", "*@example.org"]);
 
-        command(AddressCommand::Remove {
-            pattern: pattern("sales@example.org"),
-        })
-        .await
-        .unwrap();
-        let login = command(AddressCommand::Remove {
-            pattern: pattern("ada@example.org"),
-        })
-        .await;
+        command(AddressCommand::Remove { pattern: pattern("sales@example.org") }).await.unwrap();
+        let login = command(AddressCommand::Remove { pattern: pattern("ada@example.org") }).await;
         assert!(matches!(login, Err(AdminError::Refused(_))));
     }
 
@@ -422,33 +323,15 @@ mod tests {
     async fn removing_an_account_removes_its_mail_and_frees_its_address() {
         let backends = backends().await;
         add(&backends, "ada@example.org").await;
-        let owner = backends
-            .metadata
-            .find_account_by_login(&address("ada@example.org"))
-            .await
-            .unwrap()
-            .unwrap();
-        let inbox = directory::mailbox_with_role(&*backends.metadata, owner.id, MailboxRole::Inbox)
-            .await
-            .unwrap()
-            .unwrap();
+        let owner = backends.metadata.find_account_by_login(&address("ada@example.org")).await.unwrap().unwrap();
+        let inbox =
+            directory::mailbox_with_role(&*backends.metadata, owner.id, MailboxRole::Inbox).await.unwrap().unwrap();
         let blob = backends.blobs.put("Subject: hi\r\n\r\n".into()).await.unwrap();
-        let message = NewMessage {
-            blob,
-            size: 15,
-            internal_date: SystemTime::now(),
-            flags: Default::default(),
-        };
+        let message =
+            NewMessage { blob, size: 15, internal_date: SystemTime::now(), flags: Default::default(), once: None };
         backends.metadata.append_message(inbox.id, message).await.unwrap();
 
-        let printed = account(
-            &backends,
-            AccountCommand::Remove {
-                address: address("ada@example.org"),
-            },
-        )
-        .await
-        .unwrap();
+        let printed = account(&backends, AccountCommand::Remove { address: address("ada@example.org") }).await.unwrap();
         assert!(printed[0].contains("7 mailboxes, 1 stored messages"), "{printed:?}");
         assert!(matches!(backends.blobs.get(blob).await, Err(Error::NotFound)));
         add(&backends, "ada@example.org").await;

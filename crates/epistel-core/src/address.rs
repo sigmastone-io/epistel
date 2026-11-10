@@ -73,11 +73,7 @@ fn validate_domain(domain: &str) -> Result<(), InvalidAddress> {
             && !label.ends_with('-')
             && label.chars().all(|c| c.is_alphanumeric() || c == '-')
     };
-    if domain.split('.').all(label_ok) {
-        Ok(())
-    } else {
-        Err(InvalidAddress)
-    }
+    if domain.split('.').all(label_ok) { Ok(()) } else { Err(InvalidAddress) }
 }
 
 /// What an account can own: one address, or every address of a domain not owned otherwise.
@@ -145,25 +141,14 @@ mod tests {
 
     #[test]
     fn malformed_addresses_are_refused() {
-        for bad in [
-            "",
-            "alice",
-            "@example.org",
-            "alice@",
-            "al ice@example.org",
-            "alice@-example.org",
-            "alice@a..b",
-        ] {
+        for bad in ["", "alice", "@example.org", "alice@", "al ice@example.org", "alice@-example.org", "alice@a..b"] {
             assert_eq!(EmailAddress::parse(bad), Err(InvalidAddress), "{bad:?}");
         }
     }
 
     #[test]
     fn patterns_parse_both_forms() {
-        assert_eq!(
-            AddressPattern::parse("*@Example.org"),
-            Ok(AddressPattern::Domain("example.org".into()))
-        );
+        assert_eq!(AddressPattern::parse("*@Example.org"), Ok(AddressPattern::Domain("example.org".into())));
         let exact = AddressPattern::parse("bob@example.org").unwrap();
         assert_eq!(exact.to_string(), "bob@example.org");
         let address = EmailAddress::parse("bob@example.org").unwrap();

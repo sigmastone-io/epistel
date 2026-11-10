@@ -7,18 +7,12 @@ use crate::id::MailboxId;
 use crate::model::Uid;
 
 async fn expect_next(subscription: &mut Subscription, patience: Duration) -> MailboxChange {
-    timeout(patience, subscription.next())
-        .await
-        .expect("a published change arrives in time")
-        .expect("bus is alive")
+    timeout(patience, subscription.next()).await.expect("a published change arrives in time").expect("bus is alive")
 }
 
 async fn expect_silence(subscription: &mut Subscription) {
     let waited = timeout(Duration::from_millis(100), subscription.next()).await;
-    assert!(
-        waited.is_err(),
-        "nothing was published for this subscriber, got {waited:?}"
-    );
+    assert!(waited.is_err(), "nothing was published for this subscriber, got {waited:?}");
 }
 
 /// Runs the [`ChangeBus`] contract against `bus`.
@@ -30,9 +24,7 @@ pub async fn change_bus(bus: &dyn ChangeBus, patience: Duration) {
     let uid = |value| Uid::new(value).expect("non-zero");
     let change = |mailbox, kind| MailboxChange { mailbox, kind };
 
-    bus.publish(change(watched, ChangeKind::Appended(uid(1))))
-        .await
-        .expect("publishing to nobody is fine");
+    bus.publish(change(watched, ChangeKind::Appended(uid(1)))).await.expect("publishing to nobody is fine");
 
     let mut first = bus.subscribe(watched).await.expect("subscribe");
     let mut second = bus.subscribe(watched).await.expect("subscribe");
@@ -49,20 +41,14 @@ pub async fn change_bus(bus: &dyn ChangeBus, patience: Duration) {
     }
     for subscription in [&mut first, &mut second] {
         for item in &sequence {
-            assert_eq!(
-                expect_next(subscription, patience).await,
-                *item,
-                "every subscriber, in order"
-            );
+            assert_eq!(expect_next(subscription, patience).await, *item, "every subscriber, in order");
         }
     }
     expect_silence(&mut other).await;
 
     drop(first);
     let late = change(watched, ChangeKind::Appended(uid(3)));
-    bus.publish(late.clone())
-        .await
-        .expect("a dropped subscriber does not break publishing");
+    bus.publish(late.clone()).await.expect("a dropped subscriber does not break publishing");
     assert_eq!(expect_next(&mut second, patience).await, late);
 
     let elsewhere_change = change(elsewhere, ChangeKind::Appended(uid(1)));

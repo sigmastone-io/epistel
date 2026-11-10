@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use epistel_aws::{DynamoMetadataStore, Location, S3BlobStore};
+use epistel_aws::{DynamoMetadataStore, Location, S3BlobStore, SesSqsInboundSource};
 use epistel_core::memory::{
     MemoryBlobStore, MemoryChangeBus, MemoryInboundSource, MemoryMetadataStore, MemoryOutboundRelay,
 };
@@ -13,9 +13,6 @@ use crate::config::{BlobBackend, Config, InboundBackend, MetadataBackend, Outbou
 
 /// One implementation of every backend trait, as the configuration asked for.
 ///
-/// The listeners and the ingest loop that use the inbound source and the change bus arrive with
-/// their milestones.
-#[allow(dead_code)]
 pub struct Backends {
     pub metadata: Arc<dyn MetadataStore>,
     pub blobs: Arc<dyn BlobStore>,
@@ -30,46 +27,34 @@ impl Backends {
     pub async fn build(config: &Config) -> Self {
         let metadata: Arc<dyn MetadataStore> = match &config.metadata {
             MetadataBackend::Memory {} => Arc::new(MemoryMetadataStore::new()),
-            MetadataBackend::Dynamodb {
-                table,
-                region,
-                endpoint,
-            } => {
-                let location = Location {
-                    region: region.clone(),
-                    endpoint: endpoint.clone(),
-                };
-                Arc::new(DynamoMetadataStore::new(
-                    epistel_aws::dynamodb_client(&location).await,
-                    table,
-                ))
+            MetadataBackend::Dynamodb { table, region, endpoint } => {
+                let location = Location { region: region.clone(), endpoint: endpoint.clone() };
+                Arc::new(DynamoMetadataStore::new(epistel_aws::dynamodb_client(&location).await, table))
             }
         };
         let blobs: Arc<dyn BlobStore> = match &config.blobs {
             BlobBackend::Memory {} => Arc::new(MemoryBlobStore::new()),
-            BlobBackend::S3 {
-                bucket,
-                prefix,
-                region,
-                endpoint,
-            } => {
-                let location = Location {
-                    region: region.clone(),
-                    endpoint: endpoint.clone(),
-                };
-                Arc::new(S3BlobStore::new(
-                    epistel_aws::s3_client(&location).await,
-                    bucket,
-                    prefix,
+            BlobBackend::S3 { bucket, prefix, region, endpoint } => {
+                let location = Location { region: region.clone(), endpoint: endpoint.clone() };
+                Arc::new(S3BlobStore::new(epistel_aws::s3_client(&location).await, bucket, prefix))
+            }
+        };
+        let inbound: Arc<dyn InboundSource> = match &config.inbound {
+            InboundBackend::Memory {} => Arc::new(MemoryInboundSource::new()),
+            InboundBackend::SesSqs { queue_url, region, endpoint, s3_endpoint } => {
+                let queues = Location { region: region.clone(), endpoint: endpoint.clone() };
+                let buckets = Location { region: region.clone(), endpoint: s3_endpoint.clone() };
+                Arc::new(SesSqsInboundSource::new(
+                    epistel_aws::sqs_client(&queues).await,
+                    epistel_aws::s3_client(&buckets).await,
+                    queue_url,
                 ))
             }
         };
         Self {
             metadata,
             blobs,
-            inbound: match config.inbound {
-                InboundBackend::Memory {} => Arc::new(MemoryInboundSource::new()),
-            },
+            inbound,
             outbound: match config.outbound {
                 OutboundBackend::Memory {} => Arc::new(MemoryOutboundRelay::default()),
             },

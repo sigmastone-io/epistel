@@ -171,8 +171,9 @@ Notes:
 - A message delivered to several mailboxes, or copied, shares one blob.
   The blob is deleted when its count reaches zero. A periodic sweep removes
   blobs orphaned by a crash between the two steps.
-- Envelope and body structure are parsed once at ingest and stored on the
-  message record, so listing a mailbox never touches the blob store.
+- Envelope and body structure will be parsed once and stored on the message
+  record, so listing a mailbox never touches the blob store. This arrives
+  with the IMAP read path.
 - The modification sequence is recorded from day one even though
   `CONDSTORE` is later; adding the extension then needs no data change.
 
@@ -189,7 +190,7 @@ DynamoDB mapping (one table, partition key `pk`, sort key `sk`):
 | `MBOX#<mailbox>` | `META` | mailbox with its counters |
 | `MBOX#<mailbox>` | `MSG#<UID, ten digits>` | message record |
 | `BLOB#<blob>` | `META` | reference count; a marker once released |
-| `INGEST#<key>` | `META` | ingest de-duplication marker |
+| `INGEST#<key>` | `META` | a filed delivery, written with its message record |
 
 `expires_at`, in seconds since the epoch, is the table's time-to-live attribute.
 All reads are strongly consistent.
@@ -209,24 +210,42 @@ This mapping is private to `epistel-aws`.
    recipients and the spam, virus, SPF, DKIM and DMARC verdicts.
 2. `InboundSource` yields the event together with a handle for reading the
    raw bytes.
-3. Ingest reads the message, parses it, and writes it to `BlobStore`.
-4. Each envelope recipient is resolved: exact address, then catch-all for
-   the domain. Unresolved recipients are logged and dropped. Epistel does
-   not generate bounces for unknown recipients; doing so after acceptance
-   produces backscatter.
-5. The message is filed: `Junk` if the spam verdict failed, a quarantine
-   mailbox invisible to the client if the virus verdict failed, otherwise
-   `INBOX`.
-6. `ChangeBus` wakes any idle session on the affected mailboxes.
-7. Ingest acknowledges the event. The source removes the original object.
+3. Each envelope recipient is resolved to an account: exact address, then
+   catch-all for the domain. Unresolved recipients are logged and dropped.
+   Epistel does not generate bounces for unknown recipients; doing so after
+   acceptance produces backscatter. Two addresses of one account are one
+   delivery.
+4. If any account is left, ingest reads the message and writes it to
+   `BlobStore` once; all recipients share the blob.
+5. The message is filed per account: the quarantine mailbox, invisible to
+   the client, if the virus verdict failed; `Junk` if the spam verdict
+   failed; otherwise `INBOX`. A special mailbox the user deleted falls back
+   to `INBOX`, and a missing `INBOX` brings the default mailboxes back.
+6. `ChangeBus` tells sessions that have the mailbox open.
+7. Ingest acknowledges the event. The source forgets it and removes the
+   original object.
 
-Delivery is at least once on the source side, so step 5 is guarded by a
-de-duplication marker per event and recipient. A message that keeps failing
-goes to a dead-letter queue and stays in the object store for inspection.
+Losing no mail and doubling none:
+
+- The source offers a message at least once, and acknowledgement comes only
+  after every recipient is dealt with. A failure anywhere leaves the message
+  with the source.
+- Filing is exactly once. Each append carries a key made of the message and
+  the account, and the metadata store records the key together with the
+  message record, in one atomic step, refusing a key it has seen. A message
+  offered again is recognized per account.
+- A message that keeps failing, or a queue entry that is not a usable event,
+  is never acknowledged. The queue's redrive policy moves it to the
+  dead-letter queue, and the raw message stays in the object store for
+  inspection.
 
 With SES, the envelope recipients exist only in the receipt event, never in
 the message itself, which is why ingest is driven by the event and not by
-the object store.
+the object store. The source reads the queue fed by the receipt rule's
+topic, with or without raw message delivery.
+
+Ingest does not parse the message. What IMAP needs from the headers and the
+MIME structure is extracted when the IMAP read path is built.
 
 ## 8. Outbound flow
 

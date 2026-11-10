@@ -35,24 +35,15 @@ fn fresh_domain() -> String {
 
 #[track_caller]
 fn assert_not_found<T: std::fmt::Debug>(result: Result<T, Error>) {
-    assert!(
-        matches!(result, Err(Error::NotFound)),
-        "expected NotFound, got {result:?}"
-    );
+    assert!(matches!(result, Err(Error::NotFound)), "expected NotFound, got {result:?}");
 }
 
 #[track_caller]
 fn assert_already_exists<T: std::fmt::Debug>(result: Result<T, Error>) {
-    assert!(
-        matches!(result, Err(Error::AlreadyExists)),
-        "expected AlreadyExists, got {result:?}"
-    );
+    assert!(matches!(result, Err(Error::AlreadyExists)), "expected AlreadyExists, got {result:?}");
 }
 
 #[track_caller]
 fn assert_conflict<T: std::fmt::Debug>(result: Result<T, Error>) {
-    assert!(
-        matches!(result, Err(Error::Conflict(_))),
-        "expected Conflict, got {result:?}"
-    );
+    assert!(matches!(result, Err(Error::Conflict(_))), "expected Conflict, got {result:?}");
 }

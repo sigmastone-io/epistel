@@ -17,10 +17,7 @@ pub enum ConfigError {
     #[error("cannot read {path}: {source}")]
     Read { path: PathBuf, source: std::io::Error },
     #[error("{path}: {source}")]
-    Parse {
-        path: PathBuf,
-        source: Box<toml::de::Error>,
-    },
+    Parse { path: PathBuf, source: Box<toml::de::Error> },
     #[error("{0}")]
     Invalid(String),
 }
@@ -63,9 +60,7 @@ pub struct Imap {
 
 impl Default for Imap {
     fn default() -> Self {
-        Self {
-            listen: "[::]:993".parse().expect("valid address"),
-        }
+        Self { listen: "[::]:993".parse().expect("valid address") }
     }
 }
 
@@ -79,10 +74,7 @@ pub struct Submission {
 
 impl Default for Submission {
     fn default() -> Self {
-        Self {
-            listen: "[::]:465".parse().expect("valid address"),
-            max_message_size: ByteSize(40 * 1024 * 1024),
-        }
+        Self { listen: "[::]:465".parse().expect("valid address"), max_message_size: ByteSize(40 * 1024 * 1024) }
     }
 }
 
@@ -128,6 +120,17 @@ fn default_blob_prefix() -> String {
 pub enum InboundBackend {
     /// Receives nothing.
     Memory {},
+    /// Amazon SES receipt notifications, read from an SQS queue. The raw messages are fetched
+    /// from whichever bucket each notification names.
+    SesSqs {
+        queue_url: String,
+        /// Taken from the environment when left out.
+        region: Option<String>,
+        /// Only for emulators: where the queue service is.
+        endpoint: Option<String>,
+        /// Only for emulators: where the bucket service is.
+        s3_endpoint: Option<String>,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq, Deserialize)]
@@ -140,15 +143,10 @@ pub enum OutboundBackend {
 impl Config {
     /// Reads and checks a configuration file.
     pub fn load(path: &Path) -> Result<Self, ConfigError> {
-        let text = std::fs::read_to_string(path).map_err(|source| ConfigError::Read {
-            path: path.to_owned(),
-            source,
-        })?;
+        let text =
+            std::fs::read_to_string(path).map_err(|source| ConfigError::Read { path: path.to_owned(), source })?;
         let config = Self::parse(&text).map_err(|error| match error {
-            ConfigError::Parse { source, .. } => ConfigError::Parse {
-                path: path.to_owned(),
-                source,
-            },
+            ConfigError::Parse { source, .. } => ConfigError::Parse { path: path.to_owned(), source },
             other => other,
         })?;
         Ok(config)
@@ -156,10 +154,8 @@ impl Config {
 
     /// Parses and checks configuration text.
     pub fn parse(text: &str) -> Result<Self, ConfigError> {
-        let config: Self = toml::from_str(text).map_err(|source| ConfigError::Parse {
-            path: PathBuf::new(),
-            source: Box::new(source),
-        })?;
+        let config: Self = toml::from_str(text)
+            .map_err(|source| ConfigError::Parse { path: PathBuf::new(), source: Box::new(source) })?;
         config.validate()?;
         Ok(config)
     }
@@ -178,14 +174,10 @@ impl Config {
             )));
         }
         if self.submission.max_message_size.0 == 0 {
-            return Err(ConfigError::Invalid(
-                "submission.max_message_size: must be greater than zero".to_owned(),
-            ));
+            return Err(ConfigError::Invalid("submission.max_message_size: must be greater than zero".to_owned()));
         }
         if self.imap.listen == self.submission.listen {
-            return Err(ConfigError::Invalid(
-                "imap.listen and submission.listen must differ".to_owned(),
-            ));
+            return Err(ConfigError::Invalid("imap.listen and submission.listen must differ".to_owned()));
         }
         Ok(())
     }
@@ -224,9 +216,7 @@ impl<'de> Deserialize<'de> for ByteSize {
             }
 
             fn visit_i64<E: de::Error>(self, value: i64) -> Result<ByteSize, E> {
-                u64::try_from(value)
-                    .map(ByteSize)
-                    .map_err(|_| E::custom("a size cannot be negative"))
+                u64::try_from(value).map(ByteSize).map_err(|_| E::custom("a size cannot be negative"))
             }
 
             fn visit_u64<E: de::Error>(self, value: u64) -> Result<ByteSize, E> {
@@ -302,11 +292,7 @@ endpoint = \"http://localhost:9000\"",
         let config = Config::parse(&text).unwrap();
         assert_eq!(
             config.metadata,
-            MetadataBackend::Dynamodb {
-                table: "epistel".into(),
-                region: None,
-                endpoint: None
-            }
+            MetadataBackend::Dynamodb { table: "epistel".into(), region: None, endpoint: None }
         );
         assert_eq!(
             config.blobs,
@@ -321,6 +307,23 @@ endpoint = \"http://localhost:9000\"",
     }
 
     #[test]
+    fn the_ses_source_needs_its_queue() {
+        let section = "[inbound]
+backend = \"ses-sqs\"
+queue_url = \"https://sqs.eu-west-1.amazonaws.com/123456789012/epistel\"";
+        let text = MINIMAL.replace(
+            "[inbound]
+        backend = \"memory\"",
+            section,
+        );
+        let config = Config::parse(&text).unwrap();
+        assert!(
+            matches!(config.inbound, InboundBackend::SesSqs { ref queue_url, .. } if queue_url.ends_with("/epistel"))
+        );
+        assert!(error_of(&text.replace("queue_url", "queue")).contains("queue"));
+    }
+
+    #[test]
     fn the_shipped_example_is_valid() {
         Config::parse(include_str!("../../../epistel.example.toml")).unwrap();
     }
@@ -328,18 +331,9 @@ endpoint = \"http://localhost:9000\"",
     #[test]
     fn sizes_take_units_or_plain_bytes() {
         let with = |line: &str| Config::parse(&format!("{MINIMAL}\n[submission]\n{line}\n")).map(|c| c.submission);
-        assert_eq!(
-            with("max_message_size = \"10MB\"").unwrap().max_message_size,
-            ByteSize(10 << 20)
-        );
-        assert_eq!(
-            with("max_message_size = \"512 kb\"").unwrap().max_message_size,
-            ByteSize(512 << 10)
-        );
-        assert_eq!(
-            with("max_message_size = 1000").unwrap().max_message_size,
-            ByteSize(1000)
-        );
+        assert_eq!(with("max_message_size = \"10MB\"").unwrap().max_message_size, ByteSize(10 << 20));
+        assert_eq!(with("max_message_size = \"512 kb\"").unwrap().max_message_size, ByteSize(512 << 10));
+        assert_eq!(with("max_message_size = 1000").unwrap().max_message_size, ByteSize(1000));
         assert!(with("max_message_size = \"lots\"").is_err());
         assert!(with("max_message_size = -1").is_err());
         assert!(with("max_message_size = 0").is_err());
@@ -354,10 +348,12 @@ endpoint = \"http://localhost:9000\"",
         );
         assert!(error_of(&format!("{MINIMAL}\n[pop3]\nlisten = \"[::]:995\"\n")).contains("pop3"));
         assert!(
-            error_of(&MINIMAL.replace(
-                "backend = \"memory\"\n\n        [blobs]",
-                "backend = \"memory\"\ntable = \"x\"\n\n[blobs]"
-            ))
+            error_of(
+                &MINIMAL.replace(
+                    "backend = \"memory\"\n\n        [blobs]",
+                    "backend = \"memory\"\ntable = \"x\"\n\n[blobs]"
+                )
+            )
             .contains("table")
         );
     }

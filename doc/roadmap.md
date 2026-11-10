@@ -18,17 +18,18 @@ Contents:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files.
 
-Milestones, in order. 1 and 2 are done.
+Milestones, in order. 1 to 3 are done.
 
 1. **Foundation.** Workspace, core types, the five traits, in-memory
    implementations, conformance suites, configuration loading, continuous
    integration.
 2. **AWS storage.** DynamoDB and S3 implementations passing the suites.
    Admin commands.
-3. **Ingest.** SES over SQS source, parsing, address resolution, filing,
-   de-duplication, dead-letter handling.
-4. **IMAP, read path.** TLS listener, authentication, `LIST`, `STATUS`,
-   `SELECT`, `FETCH`, `SEARCH`.
+3. **Ingest.** SES over SQS source, address resolution, filing, exactly-once
+   delivery, dead-letter handling, the `serve` command.
+4. **IMAP, read path.** Message parsing with the cached envelope and body
+   structure, TLS listener, authentication, `LIST`, `STATUS`, `SELECT`,
+   `FETCH`, `SEARCH`.
 5. **IMAP, write path.** `STORE`, `APPEND`, `COPY`, `MOVE`, `EXPUNGE`,
    mailbox management, `IDLE` with change notification.
 6. **Submission.** Listener, authentication, sender authorization, relay

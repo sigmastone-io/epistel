@@ -38,6 +38,9 @@ backend = "memory"
 
 [inbound]
 backend = "memory"
+# backend = "ses-sqs"                   # Amazon SES receipt notifications from an SQS queue
+# queue_url = "https://sqs.eu-west-1.amazonaws.com/123456789012/epistel-inbound"
+# region = "eu-west-1"                  # optional
 
 [outbound]
 backend = "memory"

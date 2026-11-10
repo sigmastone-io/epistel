@@ -26,10 +26,7 @@ pub async fn blob_store(store: &dyn BlobStore) {
     assert_not_found(store.get(first).await);
     assert_eq!(store.get(duplicate).await.expect("the other copy is untouched"), text);
     store.delete(first).await.expect("deleting again is not an error");
-    store
-        .delete(BlobId::generate())
-        .await
-        .expect("deleting what never existed is not an error");
+    store.delete(BlobId::generate()).await.expect("deleting what never existed is not an error");
     assert_not_found(store.get(BlobId::generate()).await);
 
     for id in [second, duplicate, empty] {

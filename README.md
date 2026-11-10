@@ -9,9 +9,11 @@ protocol a mail client can read from. Epistel fills that gap: it keeps the
 mailboxes, serves them over IMAP, and accepts outgoing mail over SMTP
 Submission, handing it to SES for delivery.
 
-Status: early development. The storage side exists: domain types, backend traits
-with in-memory, DynamoDB and S3 implementations, conformance suites, and the
-administration commands. The protocol servers and mail flow do not yet. See:
+Status: early development. Storage and incoming mail work: backend traits with
+in-memory and AWS implementations (DynamoDB, S3, SES over SQS), conformance
+suites, administration commands, and ingest, which files received mail into
+mailboxes. Nothing can read that mail yet: the IMAP and Submission servers are
+next. See:
 
 - [doc/architecture.md](doc/architecture.md) - the design
 - [doc/roadmap.md](doc/roadmap.md) - what the first release contains, and
@@ -36,9 +38,19 @@ cargo test --workspace --all-features
 cargo run -p epistel -- --config epistel.example.toml check
 ```
 
-The DynamoDB and S3 backends are tested against emulators. Their tests run when
-`EPISTEL_TEST_DYNAMODB_ENDPOINT` and `EPISTEL_TEST_S3_ENDPOINT` name one, and
-report themselves skipped otherwise; see `crates/epistel-aws/tests/emulators.rs`.
+The AWS backends are tested against emulators. Their tests run when
+`EPISTEL_TEST_DYNAMODB_ENDPOINT`, `EPISTEL_TEST_S3_ENDPOINT` and
+`EPISTEL_TEST_SQS_ENDPOINT` name one, and report themselves skipped otherwise;
+see `crates/epistel-aws/tests/emulators.rs`.
+
+## Running
+
+```
+epistel serve
+```
+
+files incoming mail until stopped. It logs lines on a terminal and JSON
+otherwise.
 
 ## Administration
 

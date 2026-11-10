@@ -19,10 +19,7 @@ struct State {
 
 impl MemoryOutboundRelay {
     pub fn new(limits: RelayLimits) -> Self {
-        Self {
-            limits,
-            state: Mutex::default(),
-        }
+        Self { limits, state: Mutex::default() }
     }
 
     /// Everything accepted so far, oldest first.
@@ -39,10 +36,7 @@ impl MemoryOutboundRelay {
 impl Default for MemoryOutboundRelay {
     /// The limits of a typical cloud mail service: 40 MiB, 50 recipients.
     fn default() -> Self {
-        Self::new(RelayLimits {
-            max_message_size: 40 * 1024 * 1024,
-            max_recipients: 50,
-        })
+        Self::new(RelayLimits { max_message_size: 40 * 1024 * 1024, max_recipients: 50 })
     }
 }
 
