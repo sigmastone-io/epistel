@@ -19,12 +19,14 @@ all = { level = "warn", priority = -1 }
 epistel-core = { path = "crates/epistel-core", version = "0.1.0" }
 epistel-aws = { path = "crates/epistel-aws", version = "0.1.0" }
 epistel-imap = { path = "crates/epistel-imap", version = "0.1.0" }
+epistel-submission = { path = "crates/epistel-submission", version = "0.1.0" }
 
 argon2 = "0.5"
 async-trait = "0.1"
 aws-config = "1"
 aws-sdk-dynamodb = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
 base64 = "0.22"
+aws-sdk-sesv2 = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
 aws-sdk-sqs = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
 aws-sdk-s3 = { version = "1", default-features = false, features = ["rt-tokio", "default-https-client"] }
 bytes = "1"

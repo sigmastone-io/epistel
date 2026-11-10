@@ -138,6 +138,15 @@ pub enum InboundBackend {
 pub enum OutboundBackend {
     /// Accepts mail and sends it nowhere.
     Memory {},
+    /// The Amazon SES v2 send API, under the identity of the machine.
+    Ses {
+        /// Taken from the environment when left out.
+        region: Option<String>,
+        /// Only for emulators and private endpoints.
+        endpoint: Option<String>,
+        /// The SES configuration set to send under, if any.
+        configuration_set: Option<String>,
+    },
 }
 
 impl Config {
@@ -321,6 +330,16 @@ queue_url = \"https://sqs.eu-west-1.amazonaws.com/123456789012/epistel\"";
             matches!(config.inbound, InboundBackend::SesSqs { ref queue_url, .. } if queue_url.ends_with("/epistel"))
         );
         assert!(error_of(&text.replace("queue_url", "queue")).contains("queue"));
+    }
+
+    #[test]
+    fn the_ses_relay_needs_nothing_but_its_name() {
+        let text = MINIMAL.replace("[outbound]\n        backend = \"memory\"", "[outbound]\nbackend = \"ses\"");
+        let config = Config::parse(&text).unwrap();
+        assert_eq!(config.outbound, OutboundBackend::Ses { region: None, endpoint: None, configuration_set: None });
+        assert!(
+            error_of(&text.replace("backend = \"ses\"", "backend = \"ses\"\npassword = \"x\"")).contains("password")
+        );
     }
 
     #[test]

@@ -1,17 +1,16 @@
 //! One client's conversation: what state it is in and what each command does.
 
 use std::io;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 
 use bytes::Bytes;
 use epistel_core::model::{
-    AccountState, FlagChange, Flags, Keyword, Mailbox, MailboxName, MailboxRole, MessageRecord, ModSeq, NewMessage,
-    SystemFlags, Uid, UidRange,
+    FlagChange, Flags, Keyword, Mailbox, MailboxName, MailboxRole, MessageRecord, ModSeq, NewMessage, SystemFlags, Uid,
+    UidRange,
 };
 use epistel_core::{
-    AccountId, BlobId, BlobStore, ChangeBus, ChangeKind, CredentialId, EmailAddress, Error, MailboxChange,
-    MetadataStore, Subscription, password,
+    AccountId, BlobId, BlobStore, ChangeBus, ChangeKind, Error, MailboxChange, MetadataStore, Subscription, auth,
 };
 use imap_codec::imap_types::auth::AuthMechanism;
 use imap_codec::imap_types::command::{Command, CommandBody};
@@ -98,13 +97,6 @@ pub(crate) struct Session<W> {
     out: Out,
     account: Option<AccountId>,
     selected: Option<Selected>,
-}
-
-/// A hash to spend time on when there is no account to check, so that the answer takes as long
-/// for an unknown user as for a wrong password.
-fn decoy_hash() -> &'static str {
-    static HASH: OnceLock<String> = OnceLock::new();
-    HASH.get_or_init(|| password::hash(&password::generate()))
 }
 
 fn wire_text(mailbox: &WireMailbox<'_>) -> Option<String> {
@@ -411,10 +403,7 @@ impl<W: AsyncWrite + Unpin> Session<W> {
     /// Finishes `AUTHENTICATE PLAIN` with the decoded credentials: authorization identity, user
     /// name and password, separated by zero bytes.
     pub(crate) async fn authenticate_plain(&mut self, tag: &str, response: &[u8]) -> io::Result<()> {
-        let mut fields = response.split(|byte| *byte == 0);
-        let (Some(authorize_as), Some(login), Some(secret), None) =
-            (fields.next(), fields.next(), fields.next(), fields.next())
-        else {
+        let Some((authorize_as, login, secret)) = auth::split_plain(response) else {
             self.tagged(tag, "BAD The PLAIN response is malformed");
             return self.flush().await;
         };
@@ -434,7 +423,7 @@ impl<W: AsyncWrite + Unpin> Session<W> {
     }
 
     async fn log_in(&mut self, tag: &str, login: &[u8], secret: &[u8]) -> Outcome {
-        match self.check(login, secret).await? {
+        match auth::check(&*self.context.metadata, login, secret).await? {
             Some(account) => {
                 self.account = Some(account);
                 info!(%account, "logged in");
@@ -447,38 +436,6 @@ impl<W: AsyncWrite + Unpin> Session<W> {
             }
         }
         Ok(())
-    }
-
-    /// The account the credentials belong to, if they are right.
-    async fn check(&self, login: &[u8], secret: &[u8]) -> Result<Option<AccountId>, Error> {
-        let store = &*self.context.metadata;
-        let login = std::str::from_utf8(login).ok().and_then(|text| EmailAddress::parse(text).ok());
-        let account = match &login {
-            Some(login) => store.find_account_by_login(login).await?,
-            None => None,
-        };
-        let account = account.filter(|account| account.state == AccountState::Active);
-        let mut hashes: Vec<(Option<CredentialId>, String)> = match &account {
-            Some(account) => {
-                let credentials = store.list_credentials(account.id).await?;
-                credentials.into_iter().map(|credential| (Some(credential.id), credential.secret_hash)).collect()
-            }
-            None => Vec::new(),
-        };
-        if hashes.is_empty() {
-            hashes.push((None, decoy_hash().to_owned()));
-        }
-        let secret = String::from_utf8_lossy(secret).into_owned();
-        // Verifying is slow by design; keep it off the threads that serve the other connections.
-        let verifying = tokio::task::spawn_blocking(move || {
-            hashes.into_iter().find(|(_, hash)| password::verify(&secret, hash)).and_then(|(id, _)| id)
-        });
-        let matched = verifying.await.map_err(Error::unavailable)?;
-        let (Some(account), Some(credential)) = (account, matched) else { return Ok(None) };
-        if let Err(error) = store.touch_credential(account.id, credential, SystemTime::now()).await {
-            warn!(%error, "could not record the use of a credential");
-        }
-        Ok(Some(account.id))
     }
 
     // -- mailboxes -------------------------------------------------------------------------------

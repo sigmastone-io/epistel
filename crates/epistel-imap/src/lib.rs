@@ -7,9 +7,7 @@
 //! IMAP4rev1 with the extensions the greeting names: logging in, managing mailboxes, reading,
 //! searching, changing and moving messages, and waiting for news with `IDLE`.
 
-pub mod address;
 pub mod fetch;
-pub mod mime;
 pub mod search;
 mod session;
 pub mod wire;
@@ -25,6 +23,7 @@ use imap_codec::imap_types::core::LiteralMode;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite};
 use tracing::debug;
 
+pub(crate) use epistel_core::{header_address as address, mime};
 pub use session::{CAPABILITIES, Context};
 use session::{Next, Session};
 

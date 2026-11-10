@@ -10,7 +10,7 @@ repository.workspace = true
 [features]
 # The conformance suites every backend implementation must pass. A backend crate turns this on in
 # its dev-dependencies and calls the suites from its own tests.
-conformance = ["tokio/rt"]
+conformance = []
 
 [dependencies]
 argon2.workspace = true
@@ -18,7 +18,7 @@ async-trait.workspace = true
 bytes.workspace = true
 getrandom.workspace = true
 thiserror.workspace = true
-tokio = { workspace = true, features = ["macros", "sync", "time"] }
+tokio = { workspace = true, features = ["macros", "rt", "sync", "time"] }
 tracing.workspace = true
 uuid.workspace = true
 

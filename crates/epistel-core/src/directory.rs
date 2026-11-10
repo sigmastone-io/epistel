@@ -54,3 +54,10 @@ pub async fn mailbox_with_role(
     let mailboxes = store.list_mailboxes(account).await?;
     Ok(mailboxes.into_iter().find(|mailbox| mailbox.role == Some(role)))
 }
+
+/// Whether mail for `address` goes to `account`: the account owns the address itself, or the
+/// catch-all of its domain while nobody else owns the address. This is also what decides whether
+/// the account may send as that address.
+pub async fn owns(store: &dyn MetadataStore, account: AccountId, address: &EmailAddress) -> Result<bool> {
+    Ok(resolve_recipient(store, address).await? == Some(account))
+}

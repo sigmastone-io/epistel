@@ -1,11 +1,11 @@
-//! Address lists as the IMAP envelope reports them.
+//! Address lists in message headers, such as `From` and `To`.
 //!
-//! An envelope address is four strings: display name, source route (always absent today), local
-//! part and host. A group shows as a marker with the group's name, its members, and an end
-//! marker. Display names are passed on as written, encoded words included; decoding them is the
-//! client's job.
+//! An address comes apart into display name, local part and host, which is the form the IMAP
+//! envelope reports and the form a sender check needs. A group shows as a marker with the
+//! group's name, its members, and an end marker. Display names are passed on as written,
+//! encoded words included; decoding them is the reader's job.
 
-/// One element of an envelope address list.
+/// One element of an address list.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EnvelopeAddress {
     pub name: Option<String>,

@@ -36,9 +36,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Runs the server: files incoming mail and serves IMAP until told to stop.
-    ///
-    /// IMAP is read-only for now, and the Submission listener is not built yet.
+    /// Runs the server: files incoming mail, serves IMAP and takes mail to send, until told to stop.
     Serve,
     /// Reads the configuration, reports what it selects, and exits.
     Check,
@@ -119,16 +117,38 @@ async fn serve(config: &Config, backends: Backends) -> Result<(), String> {
         failed_login_delay: FAILED_LOGIN_DELAY,
         max_message_size: config.submission.max_message_size.0,
     });
-    let listener = listener::run("imap", config.imap.listen, identity, stopped(stop.subscribe()), move |stream| {
-        epistel_imap::serve(stream, imap.clone())
+    // "imap" is the registered protocol name for TLS negotiation; submission has none.
+    let reading = listener::run(
+        "imap",
+        Some(b"imap"),
+        config.imap.listen,
+        identity.clone(),
+        stopped(stop.subscribe()),
+        move |stream| epistel_imap::serve(stream, imap.clone()),
+    );
+    let submission = Arc::new(epistel_submission::Context {
+        metadata: backends.metadata.clone(),
+        relay: backends.outbound.clone(),
+        hostname: config.server.hostname.clone(),
+        max_message_size: config.submission.max_message_size.0,
+        failed_login_delay: FAILED_LOGIN_DELAY,
     });
+    let sending = listener::run(
+        "submission",
+        None,
+        config.submission.listen,
+        identity,
+        stopped(stop.subscribe()),
+        move |stream| epistel_submission::serve(stream, submission.clone()),
+    );
     let ingest = Ingest::new(backends.metadata, backends.blobs, backends.inbound, backends.changes);
     tracing::info!(
         hostname = %config.server.hostname,
         metadata = ?config.metadata,
         blobs = ?config.blobs,
         inbound = ?config.inbound,
-        "started; the Submission listener is not built yet"
+        outbound = ?config.outbound,
+        "started"
     );
 
     let ingesting = ingest.run(stopped(stop.subscribe()));
@@ -137,8 +157,17 @@ async fn serve(config: &Config, backends: Backends) -> Result<(), String> {
         tracing::info!("stopping");
         let _ = stop.send(true);
     };
-    let (listened, (), ()) = tokio::join!(listener, ingesting, stopping);
-    listened.map_err(|error| format!("cannot listen on {}: {error}", config.imap.listen))?;
+    // A listener that cannot start takes the others down with it: half a mail server is not one.
+    let listening = async {
+        let outcome = tokio::select! {
+            read = reading => read.map_err(|error| format!("cannot listen on {}: {error}", config.imap.listen)),
+            sent = sending => sent.map_err(|error| format!("cannot listen on {}: {error}", config.submission.listen)),
+        };
+        let _ = stop.send(true);
+        outcome
+    };
+    let (listened, (), ()) = tokio::join!(listening, ingesting, stopping);
+    listened?;
     tracing::info!("stopped");
     Ok(())
 }

@@ -15,15 +15,18 @@
 //! suites that every implementation has to pass.
 
 pub mod address;
+pub mod auth;
 pub mod blob;
 pub mod bus;
 pub mod directory;
 pub mod error;
+pub mod header_address;
 pub mod id;
 pub mod inbound;
 pub mod ingest;
 pub mod memory;
 pub mod metadata;
+pub mod mime;
 pub mod model;
 pub mod outbound;
 pub mod password;

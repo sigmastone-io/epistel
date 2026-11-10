@@ -11,6 +11,7 @@ repository.workspace = true
 epistel-core.workspace = true
 epistel-aws.workspace = true
 epistel-imap.workspace = true
+epistel-submission.workspace = true
 clap.workspace = true
 rustls.workspace = true
 rustls-pemfile.workspace = true

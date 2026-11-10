@@ -21,6 +21,7 @@ const MOST_CONNECTIONS: usize = 2048;
 /// is inside TLS. There is no other way in: a client that does not speak TLS gets nothing.
 pub async fn run<S, F>(
     protocol: &'static str,
+    negotiated: Option<&'static [u8]>,
     address: SocketAddr,
     identity: Arc<Identity>,
     shutdown: impl Future<Output = ()>,
@@ -53,7 +54,7 @@ where
                 continue;
             }
         };
-        let acceptor = identity.acceptor(protocol.as_bytes());
+        let acceptor = identity.acceptor(negotiated);
         let serve = serve.clone();
         tokio::spawn(async move {
             let _slot = slot;

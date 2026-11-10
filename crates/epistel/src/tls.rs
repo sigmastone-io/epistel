@@ -80,11 +80,12 @@ impl Identity {
         (modified(&self.paths.certificate), modified(&self.paths.private_key))
     }
 
-    /// An acceptor for one protocol, with the certificate as it is now.
-    pub fn acceptor(&self, protocol: &[u8]) -> TlsAcceptor {
+    /// An acceptor with the certificate as it is now. `protocol` is the name to agree on during
+    /// the handshake, for protocols that have one registered.
+    pub fn acceptor(&self, protocol: Option<&[u8]>) -> TlsAcceptor {
         let current = self.current.read().unwrap_or_else(|poisoned| poisoned.into_inner()).clone();
         let mut config = (*current).clone();
-        config.alpn_protocols = vec![protocol.to_vec()];
+        config.alpn_protocols = protocol.map(|name| name.to_vec()).into_iter().collect();
         TlsAcceptor::from(Arc::new(config))
     }
 

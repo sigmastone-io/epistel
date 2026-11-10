@@ -258,6 +258,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "aws-sdk-sesv2"
+version = "1.85.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3037659eacd093c75005d9e8714abe39e9af9bf14e7f9f6b48f729d809fb2fc4"
+dependencies = [
+ "aws-credential-types",
+ "aws-runtime",
+ "aws-smithy-async",
+ "aws-smithy-http",
+ "aws-smithy-json",
+ "aws-smithy-runtime",
+ "aws-smithy-runtime-api",
+ "aws-smithy-types",
+ "aws-types",
+ "bytes",
+ "fastrand",
+ "http 0.2.12",
+ "regex-lite",
+ "tracing",
+]
+
+[[package]]
 name = "aws-sdk-sqs"
 version = "1.74.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -871,6 +893,7 @@ dependencies = [
  "epistel-aws",
  "epistel-core",
  "epistel-imap",
+ "epistel-submission",
  "rustls",
  "rustls-pemfile",
  "serde",
@@ -890,6 +913,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
  "aws-sdk-s3",
+ "aws-sdk-sesv2",
  "aws-sdk-sqs",
  "bytes",
  "epistel-core",
@@ -923,6 +947,18 @@ dependencies = [
  "chrono",
  "epistel-core",
  "imap-codec",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "epistel-submission"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "epistel-core",
  "tokio",
  "tracing",
 ]

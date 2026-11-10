@@ -1,7 +1,8 @@
 //! The MIME structure of a message, as byte ranges into the raw message.
 //!
 //! IMAP hands out pieces of the message exactly as they were received and reports sizes in
-//! octets of the undecoded text, so nothing here decodes or copies content. Parsing never fails:
+//! octets of the undecoded text, and Submission has to pass a message on unchanged but for a few
+//! header fields, so nothing here decodes or copies content. Parsing never fails:
 //! whatever arrives is described as well as it can be, the way mail clients expect of a server.
 
 use std::ops::Range;

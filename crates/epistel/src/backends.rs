@@ -3,7 +3,7 @@
 
 use std::sync::Arc;
 
-use epistel_aws::{DynamoMetadataStore, Location, S3BlobStore, SesSqsInboundSource};
+use epistel_aws::{DynamoMetadataStore, Location, S3BlobStore, SesOutboundRelay, SesSqsInboundSource};
 use epistel_core::memory::{
     MemoryBlobStore, MemoryChangeBus, MemoryInboundSource, MemoryMetadataStore, MemoryOutboundRelay,
 };
@@ -51,13 +51,18 @@ impl Backends {
                 ))
             }
         };
+        let outbound: Arc<dyn OutboundRelay> = match &config.outbound {
+            OutboundBackend::Memory {} => Arc::new(MemoryOutboundRelay::default()),
+            OutboundBackend::Ses { region, endpoint, configuration_set } => {
+                let location = Location { region: region.clone(), endpoint: endpoint.clone() };
+                Arc::new(SesOutboundRelay::new(epistel_aws::ses_client(&location).await, configuration_set.clone()))
+            }
+        };
         Self {
             metadata,
             blobs,
             inbound,
-            outbound: match config.outbound {
-                OutboundBackend::Memory {} => Arc::new(MemoryOutboundRelay::default()),
-            },
+            outbound,
             // One instance, so the bus inside the process is the whole bus. It becomes a
             // configuration section when there is a second implementation to choose.
             changes: Arc::new(MemoryChangeBus::new()),

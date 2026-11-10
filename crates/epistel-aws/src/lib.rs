@@ -5,6 +5,7 @@
 //! | `MetadataStore` | [`DynamoMetadataStore`], one DynamoDB table |
 //! | `BlobStore` | [`S3BlobStore`], one prefix of an S3 bucket |
 //! | `InboundSource` | [`SesSqsInboundSource`], SES receipt notifications from an SQS queue |
+//! | `OutboundRelay` | [`SesOutboundRelay`], the SES v2 send API |
 //!
 //! Nothing here creates infrastructure in a deployment: table and bucket come from the
 //! `terraform-aws-epistel` module. [`DynamoMetadataStore::create_table`] exists for tests and for
@@ -12,10 +13,12 @@
 
 mod dynamo;
 mod s3;
+mod ses;
 mod ses_sqs;
 
 pub use dynamo::DynamoMetadataStore;
 pub use s3::S3BlobStore;
+pub use ses::SesOutboundRelay;
 pub use ses_sqs::SesSqsInboundSource;
 
 use aws_config::{BehaviorVersion, Region, SdkConfig};
@@ -55,6 +58,11 @@ pub async fn s3_client(location: &Location) -> aws_sdk_s3::Client {
         .force_path_style(location.endpoint.is_some())
         .build();
     aws_sdk_s3::Client::from_conf(config)
+}
+
+/// An SES client for `location`.
+pub async fn ses_client(location: &Location) -> aws_sdk_sesv2::Client {
+    aws_sdk_sesv2::Client::new(&sdk_config(location).await)
 }
 
 /// An SQS client for `location`.

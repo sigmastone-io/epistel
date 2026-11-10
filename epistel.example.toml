@@ -44,3 +44,6 @@ backend = "memory"
 
 [outbound]
 backend = "memory"
+# backend = "ses"                       # the Amazon SES v2 send API
+# region = "eu-west-1"                  # optional
+# configuration_set = "epistel"         # optional

@@ -18,7 +18,7 @@ Contents:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files.
 
-Milestones, in order. 1 to 5 are done.
+Milestones, in order. 1 to 6 are done.
 
 1. **Foundation.** Workspace, core types, the five traits, in-memory
    implementations, conformance suites, configuration loading, continuous
@@ -33,8 +33,9 @@ Milestones, in order. 1 to 5 are done.
 5. **IMAP, write path.** `STORE`, `APPEND`, `COPY`, `MOVE`, `EXPUNGE`,
    mailbox management, `IDLE` with change notification, updates between
    sessions.
-6. **Submission.** Listener, authentication, sender authorization, relay
-   through SES.
+6. **Submission.** Listener, `AUTH PLAIN` and `LOGIN`, sender authorization
+   for envelope and `From`, message completion, relay through the SES send
+   API.
 7. **Hardening.** Header block kept on the message record so that listing
    a mailbox does not read blobs, rate limits, connection limits, fuzzing,
    client matrix,
