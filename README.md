@@ -12,10 +12,10 @@ connect to: received mail lands in a bucket. The usual workaround is forwarding 
 mailbox somewhere else, which moves the mail out of the account and breaks sender alignment on the
 way. Epistel keeps the mail in the operator's own account instead.
 
-> **Status: pre-release.** Mail comes in, can be read and managed, and goes out. The hardening
-> milestone of the first release is still open (see [What 0.1 covers](#what-01-covers)). There are
-> no compatibility promises before 1.0: storage layout, configuration and command line may change
-> between releases without a migration path.
+> **Status: 0.1.0, the first release.** Mail comes in, can be read and managed, and goes out.
+> Hardening comes next (see [What 0.1 covers](#what-01-covers)). There are no compatibility
+> promises before 1.0: storage layout, configuration and command line may change between releases
+> without a migration path.
 
 ## What it is, and what it is not
 
@@ -109,10 +109,11 @@ In 0.1:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files, reloaded when the files change.
 
-Still open before 0.1 is tagged (milestone 7, hardening): rate limits for failed logins per source
-and per account, connection limits, fuzzing of the parsers, a manual client matrix, the sweep for
-unreferenced stored messages, keeping the header block on the message record, and release
-binaries for x86-64 and ARM64 Linux. The container image exists for x86-64 only.
+Next, after 0.1.0 (hardening): rate limits for failed logins per source and per account,
+connection limits per source and per account, graceful shutdown, fuzzing of the parsers, a manual
+client matrix, the sweep for unreferenced stored messages, keeping the header block on the message
+record, and release binaries for x86-64 and ARM64 Linux. The container image exists for x86-64
+only.
 
 Not in 0.1, by design: shared mailboxes, Sieve filters, quotas, `CONDSTORE`/`QRESYNC`, full-text
 search, more than one instance, metrics, other backends. Never planned: POP3, STARTTLS, plaintext
@@ -134,8 +135,9 @@ listeners, port 25. The roadmap lists each with the reason.
 
 The image holds one binary on a distroless base (no shell, no package manager) and runs it as an
 unprivileged user, uid 65532. It publishes ports 993 and 465 and reads its configuration from
-`/etc/epistel/epistel.toml`. Images are published to `ghcr.io/sigmastone-io/epistel`, tagged with
-the commit they were built from; deploy by digest.
+`/etc/epistel/epistel.toml`. Images are published to `ghcr.io/sigmastone-io/epistel`: each release
+as its version (`0.1.0`) and minor line (`0.1`), and every build of `dev` as its commit. Deploy by
+digest; each release's notes name it.
 
 ```
 docker run -d --name epistel \
@@ -258,8 +260,9 @@ one (CI uses DynamoDB Local, S3Mock and ElasticMQ), and report themselves skippe
 
 - Only TLS listeners exist; there is no way to configure a plaintext one.
 - App passwords only, stored as Argon2id hashes. Every failed login is answered after a fixed delay.
-  Per-source and per-account rate limits and connection limits are part of the open hardening
-  milestone and not in yet; until then, restrict who can reach the ports where you can.
+  Each listener serves at most 2048 connections at a time. Per-source and per-account rate limits
+  and connection limits come with hardening and are not in 0.1.0; until then, restrict who can
+  reach the ports where you can.
 - No credentials in the configuration. Cloud access uses the identity of the host.
 - Message content and credentials are never logged. Logs carry connection, account and message
   identifiers only.

@@ -18,7 +18,7 @@ Contents:
 - Junk filing and virus quarantine from the mail service's verdicts.
 - One instance, TLS certificate from files.
 
-Milestones, in order. 1 to 6 are done, and of 7 the container image and the declared mailboxes.
+Milestones, in order. All seven are done; 0.1.0 is their release.
 
 1. **Foundation.** Workspace, core types, the five traits, in-memory
    implementations, conformance suites, configuration loading, continuous
@@ -36,12 +36,27 @@ Milestones, in order. 1 to 6 are done, and of 7 the container image and the decl
 6. **Submission.** Listener, `AUTH PLAIN` and `LOGIN`, sender authorization
    for envelope and `From`, message completion, relay through the SES send
    API.
-7. **Hardening.** Header block kept on the message record so that listing
-   a mailbox does not read blobs, rate limits, connection limits, fuzzing,
-   client matrix,
-   the sweep for unreferenced blobs and items, batched expunge on DynamoDB,
-   release artifacts (static binaries for x86-64 and ARM64 Linux; the
-   container image for x86-64 exists, one for ARM64 does not).
+7. **Packaging.** Mailboxes declared in the configuration, the container
+   image for x86-64, published with each release.
+
+## Next: hardening
+
+Planned for the release after 0.1.0, in no fixed order:
+
+- Header block kept on the message record, so that listing a mailbox does
+  not read blobs.
+- Rate limits for failed logins per source address and per account, with
+  exponential delay, and connection limits per source and per account.
+  0.1.0 answers every failed login after a fixed delay and caps each
+  listener at 2048 connections.
+- Graceful shutdown: `BYE` to IMAP sessions, Submission transactions in
+  flight finished.
+- Fuzzing of the IMAP and SMTP parsers.
+- The manual client matrix.
+- The sweep for unreferenced blobs and items, and batched expunge on
+  DynamoDB.
+- Release artifacts: static binaries for x86-64 and ARM64 Linux, and a
+  container image for ARM64.
 
 The infrastructure module is developed alongside, from milestone 2 on, in
 the `terraform-aws-epistel` repository.

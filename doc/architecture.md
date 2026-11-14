@@ -178,12 +178,12 @@ Notes:
 - Every account starts with `INBOX`, `Drafts`, `Sent`, `Junk`, `Trash` and
   `Archive`, with special-use attributes set.
 - A message delivered to several mailboxes, or copied, shares one blob.
-  The blob is deleted when its count reaches zero. A periodic sweep removes
-  blobs orphaned by a crash between the two steps.
+  The blob is deleted when its count reaches zero. A crash between the two
+  steps leaves an orphaned blob; the sweep that removes those is later.
 - Envelope, body structure and header fields are computed from the stored
   message when a client asks for them, so those requests read the blob.
   Keeping the header block on the message record, so that listing a mailbox
-  never touches the blob store, is planned before 0.1 (see the roadmap).
+  never touches the blob store, is later (see the roadmap).
 - The modification sequence is recorded from day one even though
   `CONDSTORE` is later; adding the extension then needs no data change.
 
@@ -342,18 +342,20 @@ stays silent for five minutes.
 ## 10. Security
 
 - Only TLS listeners exist. There is no way to configure a plaintext one.
-- App passwords only; hashes are Argon2id with parameters in configuration.
-- Failed authentication is rate limited per source address and per account,
-  with exponential delay. Limits are in memory in 0.1.
-- Connection limits per source address and per account.
+- App passwords only; hashes are Argon2id with the hashing library's default
+  parameters.
+- Every failed authentication is answered after a fixed delay. Rate limits
+  per source address and per account, with exponential delay, are later.
+- Each listener serves at most 2048 connections at a time. Connection limits
+  per source address and per account are later.
 - No credentials in the configuration file. Cloud access uses the identity
   of the host (instance role on AWS).
 - Message content and credentials are never logged. Logs carry connection,
   account and message identifiers only.
 - Encryption at rest is the storage backend's duty and is required by the
   reference infrastructure.
-- Parsers are fuzzed. The process needs no privileges beyond binding its
-  ports and runs as an unprivileged user.
+- The process needs no privileges beyond binding its ports and runs as an
+  unprivileged user. Fuzzing the parsers is later.
 
 ## 11. Configuration
 
@@ -435,8 +437,9 @@ when it runs in one, or from an operator machine with equivalent access.
   different instances would not see each other's changes until the client
   polls; a shared `ChangeBus` is later.
 - The instance is disposable. Replacing it loses nothing.
-- Graceful shutdown sends `BYE` to IMAP sessions and finishes Submission
-  transactions in flight.
+- On a stop signal the listeners stop accepting and the process exits; open
+  sessions are cut. Sending `BYE` to IMAP sessions and finishing Submission
+  transactions in flight is later.
 - Structured logs on standard output. Metrics are later.
 
 ## 14. Testing
@@ -446,15 +449,17 @@ when it runs in one, or from an operator machine with equivalent access.
   implementations.
 - Protocol tests that drive the IMAP and Submission servers with independent
   client libraries.
-- Fuzzing of the IMAP and SMTP parsers.
+- Fuzzing of the IMAP and SMTP parsers (later).
 - A manual client matrix before each release: Outlook (classic and new),
-  Thunderbird, Apple Mail, iOS Mail, one Android client.
+  Thunderbird, Apple Mail, iOS Mail, one Android client (later).
 
 ## 15. Building blocks
 
 - `tokio` for the runtime, `rustls` for TLS.
 - `imap-codec` for IMAP parsing and serialization.
-- `mail-parser` for MIME.
+- The server's own code for MIME structure and address lists, because IMAP
+  reports byte ranges and undecoded header text, and Submission passes a
+  message on unchanged.
 - The official AWS SDK for Rust inside `epistel-aws`.
 - `argon2` for password hashing, `tracing` for logs.
 
