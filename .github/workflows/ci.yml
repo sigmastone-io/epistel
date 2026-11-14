@@ -82,14 +82,30 @@ jobs:
         id: registry
         if: steps.ecr.outcome == 'success'
         uses: aws-actions/amazon-ecr-login@v2
+      # Every image is tagged with its commit. A release tag (v0.1.0) adds the version, and on
+      # this repository's registry also the minor line (0.1), which moves with each patch release.
+      # ECR repositories are often immutable, so they get the commit and the full version only.
       - name: Name the image
         id: names
         run: |
-          names="ghcr.io/${GITHUB_REPOSITORY,,}:${GITHUB_SHA}"
+          ghcr="ghcr.io/${GITHUB_REPOSITORY,,}"
+          names="${ghcr}:${GITHUB_SHA}"
+          version=""
+          if [[ "${GITHUB_REF_TYPE}" == "tag" && "${GITHUB_REF_NAME}" =~ ^v([0-9]+)\.([0-9]+)\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            version="${GITHUB_REF_NAME#v}"
+            names="${names},${ghcr}:${version}"
+            if [ -z "${BASH_REMATCH[3]}" ]; then
+              names="${names},${ghcr}:${BASH_REMATCH[1]}.${BASH_REMATCH[2]}"
+            fi
+          fi
           if [ -n "${ECR_REGISTRY}" ]; then
             names="${names},${ECR_REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+            if [ -n "${version}" ]; then
+              names="${names},${ECR_REGISTRY}/${ECR_REPOSITORY}:${version}"
+            fi
           fi
           echo "names=${names}" >> "$GITHUB_OUTPUT"
+          echo "version=${version:-${GITHUB_SHA}}" >> "$GITHUB_OUTPUT"
         env:
           ECR_REGISTRY: ${{ steps.registry.outputs.registry }}
           ECR_REPOSITORY: ${{ vars.ECR_REPOSITORY }}
@@ -99,13 +115,18 @@ jobs:
           context: .
           push: true
           tags: ${{ steps.names.outputs.names }}
+          labels: |
+            org.opencontainers.image.version=${{ steps.names.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           # One manifest, so that the digest printed below is the image itself.
           provenance: false
       - name: Report the digest
         run: |
+          echo "Image tags: \`${NAMES}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Image digest: \`${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "Deploy by digest: \`<repository>@${DIGEST}\`" >> "$GITHUB_STEP_SUMMARY"
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
+          NAMES: ${{ steps.names.outputs.names }}
