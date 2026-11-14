@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! App passwords: made by the server, shown once, stored only as a hash.
 //!
 //! Users never choose a password. A generated one carries 160 bits from the operating system's

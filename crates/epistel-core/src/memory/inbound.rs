@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 use std::collections::{HashMap, VecDeque};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime};

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Deciding whether a message matches a SEARCH key.
 //!
 //! Text is compared as it sits in the message: without decoding encoded words or transfer

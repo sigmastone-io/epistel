@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! What every backend has to get right, as code.
 //!
 //! One function per trait. Each takes an implementation, exercises the contract written in the

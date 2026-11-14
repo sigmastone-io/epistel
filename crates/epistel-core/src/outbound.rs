@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The outbound relay: handing a message to the mail service for delivery.
 
 use async_trait::async_trait;

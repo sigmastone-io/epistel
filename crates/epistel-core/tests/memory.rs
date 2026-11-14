@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The in-memory backends against the conformance suites, and the rules in `directory` against
 //! the in-memory store.
 

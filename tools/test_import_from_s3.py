@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+# SPDX-License-Identifier: Apache-2.0
+
 """Tests for the parts of import_from_s3.py that decide where a message goes.
 
     python -m unittest discover -s tools -p "test_*.py"

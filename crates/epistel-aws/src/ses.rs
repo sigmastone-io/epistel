@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Sending through Amazon SES.
 //!
 //! The message goes out through the SES v2 send API as raw content, under the identity of the

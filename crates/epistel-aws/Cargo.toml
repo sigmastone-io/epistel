@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+# SPDX-License-Identifier: Apache-2.0
+
 [package]
 name = "epistel-aws"
 description = "Amazon Web Services backends of the Epistel mail server: DynamoDB, S3, SES and SQS."

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! What the server looks at and changes in a submitted message: who it says it is from, and
 //! the header fields a submission server is expected to see to.
 

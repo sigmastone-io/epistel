@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Rules about accounts and addresses that hold for every metadata store.
 
 use crate::address::{AddressPattern, EmailAddress};

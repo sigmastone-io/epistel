@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The submission server driven the way a mail client drives it, over an in-memory pipe.
 
 use std::sync::Arc;

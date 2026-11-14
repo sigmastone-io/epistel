@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The IMAP server driven the way a client drives it: text in, text out, over an in-memory pipe.
 
 use std::sync::Arc;

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The AWS backends against the conformance suites.
 //!
 //! These need something that speaks the DynamoDB and S3 protocols. They run when the endpoints are

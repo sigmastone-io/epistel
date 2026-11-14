@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Implementations of every backend trait that live in the process.
 //!
 //! They hold nothing once the process ends. They exist for tests, for trying the server out

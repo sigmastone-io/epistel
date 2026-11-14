@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Ingest: takes received mail from the inbound source and files it into mailboxes.
 //!
 //! The source offers each message at least once, and anything here can fail half way. The rules

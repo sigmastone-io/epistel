@@ -1,3 +1,6 @@
+# SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+# SPDX-License-Identifier: Apache-2.0
+
 [package]
 name = "epistel-submission"
 description = "Mail submission (SMTP) server of the Epistel mail server."

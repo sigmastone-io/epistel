@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The MIME structure of a message, as byte ranges into the raw message.
 //!
 //! IMAP hands out pieces of the message exactly as they were received and reports sizes in

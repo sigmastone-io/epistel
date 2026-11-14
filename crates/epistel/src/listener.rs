@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Accepting connections: TCP, then TLS, then the protocol.
 
 use std::future::Future;

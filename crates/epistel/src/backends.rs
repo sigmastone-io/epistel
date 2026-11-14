@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Turns the backend sections of the configuration into trait objects. This is the only place
 //! that knows which implementations exist.
 

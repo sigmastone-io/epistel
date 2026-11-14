@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Mail received by Amazon SES, picked up from an SQS queue.
 //!
 //! The expected setup: an SES receipt rule with one S3 action that stores the raw message and

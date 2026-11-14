@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+
+# SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+# SPDX-License-Identifier: Apache-2.0
+
 """Bring mail that SES stored in an S3 bucket into Epistel mailboxes.
 
 For a domain that received mail through an SES receipt rule with an S3 action before Epistel

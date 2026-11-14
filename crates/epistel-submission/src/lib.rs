@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The mail submission server of Epistel: how a mail client hands over a message to be sent.
 //!
 //! SMTP as profiled for submission (RFC 6409), over a stream that is already inside TLS. Only a

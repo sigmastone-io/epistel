@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The metadata store on DynamoDB.
 //!
 //! One table, partition key `pk`, sort key `sk`, both strings. Every read is strongly consistent:

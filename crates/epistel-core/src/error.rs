@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The error type shared by the storage, inbound and notification traits.
 
 /// A boxed error from a backend, kept opaque so that no vendor type crosses a trait.

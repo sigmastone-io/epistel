@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The inbound source: mail the mail service accepted for our domains.
 
 use std::time::{Duration, SystemTime};

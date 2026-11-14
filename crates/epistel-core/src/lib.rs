@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Domain types and backend traits of the Epistel mail server.
 //!
 //! Everything outside the process sits behind one of five traits:

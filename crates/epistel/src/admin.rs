@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The administration commands: accounts, app passwords and addresses.
 //!
 //! They act on the metadata store directly, with the same configuration as the server, so they

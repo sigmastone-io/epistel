@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! Identifiers. Each is a random UUID wrapped in its own type, so that an account id cannot be
 //! passed where a mailbox id is expected.
 

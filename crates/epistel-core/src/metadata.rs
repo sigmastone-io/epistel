@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The metadata store: everything about mail except the raw messages themselves.
 
 use std::time::SystemTime;

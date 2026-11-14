@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The change bus: how a session learns that someone else touched its mailbox.
 
 use async_trait::async_trait;

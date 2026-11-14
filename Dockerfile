@@ -1,5 +1,8 @@
 # syntax=docker/dockerfile:1
 
+# SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+# SPDX-License-Identifier: Apache-2.0
+
 # The server as a container image: one static-enough binary on a base with nothing else in it.
 #
 #   docker build -t epistel .

@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 Sigmastone OÜ
+// SPDX-License-Identifier: Apache-2.0
+
 //! The server's TLS identity, read from files and read again when they change.
 //!
 //! Whatever issues the certificate (an ACME client, an operator, a secrets agent) only has to
