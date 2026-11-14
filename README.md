@@ -49,24 +49,40 @@ There is exactly one way to connect, and no options to loosen it:
 
 ## How it works
 
-```
-                    internet
-                       |
-                  mail service  (MX, DKIM, scanning, delivery)
-                  /          \
-        received mail        outgoing mail
-     (object + event)        (send API)
-                |                ^
-                v                |
-        +-------+----------------+--------+
-        |            Epistel              |
-        |  ingest      IMAP    submission |
-        |      +--- mail core ---+        |
-        +--------+-------------+----------+
-                 |             |
-          metadata store   blob store
+```mermaid
+flowchart LR
+    internet((Internet))
+    clients[Mail clients]
 
-        mail clients --993/465 TLS--> Epistel
+    subgraph aws [Amazon Web Services]
+        ses[Amazon SES<br/>MX, scanning, DKIM, delivery]
+        incoming[(S3<br/>received messages)]
+        queue[SNS topic and<br/>SQS queue]
+
+        subgraph epistel [Epistel]
+            ingest[Ingest]
+            imap[IMAP]
+            submission[Submission]
+            core[Mail core]
+        end
+
+        metadata[(DynamoDB<br/>metadata)]
+        blobs[(S3<br/>messages)]
+    end
+
+    internet <--> ses
+    ses -- raw message --> incoming
+    ses -- receipt event --> queue
+    queue --> ingest
+    incoming --> ingest
+    ingest --> core
+    imap --> core
+    submission --> core
+    core --> metadata
+    core --> blobs
+    submission -- SES v2 send API --> ses
+    clients -- "993, TLS" --> imap
+    clients -- "465, TLS" --> submission
 ```
 
 - **Ingest.** SES stores each received message in S3 and publishes a receipt event (envelope
