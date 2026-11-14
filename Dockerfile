@@ -20,7 +20,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 
 # glibc, CA certificates and time zones; no shell, no package manager.
 FROM gcr.io/distroless/cc-debian12:nonroot
+LABEL org.opencontainers.image.title="Epistel" \
+      org.opencontainers.image.description="Mail server that serves mail of domains on Amazon SES to standard clients over IMAP and SMTP Submission." \
+      org.opencontainers.image.vendor="Sigmastone OÜ" \
+      org.opencontainers.image.url="https://sigmastone.io" \
+      org.opencontainers.image.source="https://github.com/sigmastone-io/epistel" \
+      org.opencontainers.image.licenses="Apache-2.0"
 COPY --from=build /epistel /usr/local/bin/epistel
+COPY LICENSE NOTICE /usr/share/doc/epistel/
 USER nonroot
 EXPOSE 993 465
 ENTRYPOINT ["/usr/local/bin/epistel"]

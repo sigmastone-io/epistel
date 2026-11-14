@@ -1,11 +1,15 @@
 [package]
 name = "epistel-aws"
-description = "Amazon Web Services backends of the Epistel mail server: DynamoDB and S3."
+description = "Amazon Web Services backends of the Epistel mail server: DynamoDB, S3, SES and SQS."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
+authors.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
 
 [dependencies]
 epistel-core.workspace = true

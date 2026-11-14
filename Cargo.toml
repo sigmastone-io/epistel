@@ -6,8 +6,12 @@ members = ["crates/*"]
 version = "0.1.0"
 edition = "2024"
 rust-version = "1.85"
+authors = ["Sigmastone OÜ"]
 license = "Apache-2.0"
 repository = "https://github.com/sigmastone-io/epistel"
+homepage = "https://sigmastone.io"
+keywords = ["imap", "smtp", "mail", "email", "ses"]
+categories = ["email", "network-programming"]
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
